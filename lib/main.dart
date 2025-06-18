@@ -1,6 +1,6 @@
+import 'package:blue_pdf/screens/splash_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:blue_pdf/state_providers.dart';
-import 'screens/home_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.light);
@@ -34,7 +34,7 @@ class PDFUtilApp extends StatelessWidget {
             useMaterial3: true,
           ),
           themeMode: mode,
-          home: const HomeScreen(),
+          home: const SplashScreen(),
         );
       },
     );
