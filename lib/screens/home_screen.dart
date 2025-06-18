@@ -55,13 +55,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           mergePDFsIsolate as ComputeCallback<Map<String, List<String>>, Uint8List>,
           {'filePaths': filePaths},
         );
-        ref.read(mergePdfFilesProvider.notifier).clear();
       } else {
         resultBytes = await compute(
           imageToPdf as ComputeCallback<Map<String, List<String>>, Uint8List>,
           {'filePaths': filePaths},
         );
-        ref.read(imageToPdfFilesProvider.notifier).clear();
       }
 
       // Store result in memory
@@ -99,7 +97,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   void _onToolSelect() async {
     try {
-      ref.read(isFileLoadingProvider.notifier).state = true;
       final selectedTool = ref.read(selectedToolProvider);
 
       if (selectedTool == null) {
@@ -121,14 +118,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             withData: false,
           );
           if (result != null && result.files.isNotEmpty) {
+            ref.read(isFileLoadingProvider.notifier).state = true;
             ref.read(mergePdfFilesProvider.notifier).addFiles(result.files);
           }
           break;
 
         case 'Image to PDF':
           result = await FilePicker.platform.pickFiles(
-            type: FileType.custom,
-            allowedExtensions: ['jpg', 'jpeg', 'png'],
+            type: FileType.image, 
             allowMultiple: true,
             withData: false,
           );
@@ -529,20 +526,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
             const SizedBox(height: 36),
             
-            Row(
-              children: [
-                const Icon(Icons.history, color: Colors.blueAccent, size: 22),
-                const SizedBox(width: 8),
-                Text(
-                  "Recently Created Files",
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: textColor,
+            if (selectedFiles.isEmpty)
+              Row(
+                children: [
+                  const Icon(Icons.history, color: Colors.blueAccent, size: 22),
+                  const SizedBox(width: 8),
+                  Text(
+                    "Recently Created Files",
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: textColor,
+                    ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
+
 
             const SizedBox(height: 25),
             Flexible(
@@ -553,7 +552,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
                         padding: const EdgeInsets.all(40),
                         decoration: BoxDecoration(
-                          color: Colors.blueGrey.shade50,
+                          color: Colors.white,
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(color: Colors.blueGrey.shade100),
                           boxShadow: [
@@ -594,6 +593,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 letterSpacing: 0.2,
                               ),
                             ),
+                            const SizedBox(height: 8),
                           ],
                         ),
                       )
@@ -689,7 +689,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             ),
 
-            const SizedBox(height: 10),
+            const SizedBox(height: 20),
 
             Padding(
               padding: const EdgeInsets.only(bottom: 30),

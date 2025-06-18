@@ -1,11 +1,14 @@
 import 'dart:io';
+import 'package:blue_pdf/screens/pdf_viewer_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:blue_pdf/main.dart';
 import 'package:blue_pdf/state_providers.dart';
 import 'package:share_plus/share_plus.dart';
 import 'about_page.dart';  // adjust as per your project structure
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class ProcessSuccessScreen extends StatelessWidget {
+
+class ProcessSuccessScreen extends ConsumerWidget {
   final String resultPath;
 
   const ProcessSuccessScreen({super.key, required this.resultPath});
@@ -22,11 +25,16 @@ class ProcessSuccessScreen extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? Colors.grey[900] : const Color(0xFFEEEEF0);
     final textColor = isDark ? Colors.white : Colors.black87;
     final cardColor = isDark ? Colors.grey[850] : Colors.grey[100];
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(mergePdfFilesProvider.notifier).clear();
+      ref.read(imageToPdfFilesProvider.notifier).clear();
+    });
 
     final fileSize = _getFileSize(resultPath);
 
@@ -130,101 +138,105 @@ class ProcessSuccessScreen extends StatelessWidget {
                   ),
 
                   const SizedBox(height: 20),
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: cardColor,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text("📍 Location", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey.shade700)),
-                        const SizedBox(height: 4),
-                        Text(resultPath, style: TextStyle(fontSize: 12, color: Colors.blueGrey.shade700)),
-                        const SizedBox(height: 8),
-                        Text("📦 Size: $fileSize", style: TextStyle(fontSize: 13, color: Colors.blueGrey.shade700)),
-                      ],
+
+                  const SizedBox(height: 20),
+
+                  /// PDF Info Box (Clickable)
+                  GestureDetector(
+                    onTap: () {
+                      ref.read(selectedFilePathProvider.notifier).state = resultPath;
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const PdfViewerScreen(), // 👈 no arguments passed
+                        ),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: cardColor,
+                        borderRadius: BorderRadius.circular(14),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.blueAccent.withOpacity(0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.picture_as_pdf, size: 30, color: Colors.blueAccent),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  resultPath.split("/").last,
+                                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  fileSize,
+                                  style: TextStyle(fontSize: 13, color: Colors.grey),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+                        ],
+                      ),
                     ),
                   ),
+
                   const SizedBox(height: 28),
 
-                  /// Action Buttons
-                  Wrap(
-                    spacing: 16,
-                    runSpacing: 16,
-                    alignment: WrapAlignment.center,
+                  /// Action Buttons: Back to Home + Share
+                  Row(
                     children: [
-                      SizedBox(
-                        width: 140,
-                        height: 48,
+                      Expanded(
                         child: ElevatedButton.icon(
-                          icon: const Icon(Icons.share, size: 20),
+                          icon: const Icon(Icons.home),
+                          label: const Text("Home", style: TextStyle(fontSize: 15)),
+                          onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            backgroundColor: Colors.grey.shade800,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          icon: const Icon(Icons.share),
                           label: const Text("Share", style: TextStyle(fontSize: 15)),
                           onPressed: () {
                             Share.shareXFiles([XFile(resultPath)], text: 'Here is your PDF');
                           },
                           style: ElevatedButton.styleFrom(
-                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
                             backgroundColor: Colors.blueAccent,
-                            elevation: 3,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                        ),
-                      ),
-                      SizedBox(
-                        width: 140,
-                        height: 48,
-                        child: ElevatedButton.icon(
-                          icon: const Icon(Icons.compress_rounded, size: 20),
-                          label: const Text("Compress", style: TextStyle(fontSize: 15)),
-                          onPressed: () {
-                            // TODO: Add compress logic
-                          },
-                          style: ElevatedButton.styleFrom(
                             foregroundColor: Colors.white,
-                            backgroundColor: Colors.teal,
-                            elevation: 3,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
                         ),
                       ),
-                      SizedBox(
-                        width: 140,
-                        height: 48,
-                        child: ElevatedButton.icon(
-                          icon: const Icon(Icons.lock_outline, size: 20),
-                          label: const Text("Encrypt", style: TextStyle(fontSize: 15)),
-                          onPressed: () {
-                            // TODO: Add encrypt logic
-                          },
-                          style: ElevatedButton.styleFrom(
-                            foregroundColor: Colors.white,
-                            backgroundColor: Colors.deepPurple,
-                            elevation: 3,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                        ),
-                      ),
+
+
+
                     ],
-                  ),
-
-
-                  const SizedBox(height: 32),
-
-                  /// Back to Home
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.grey.shade800,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      child: const Text("Back to Home", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                    ),
                   ),
                 ],
               ),

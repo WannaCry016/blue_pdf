@@ -39,6 +39,7 @@ dependencies:
   flutter_pdfview: ^1.4.0+1
   flutter_native_splash: ^2.4.6
   icons_launcher: ^3.0.1
+  file_saver: ^0.2.14
 
 dev_dependencies:
   flutter_test:
