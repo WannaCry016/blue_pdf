@@ -1,8 +1,12 @@
+import 'dart:io';
 import 'dart:typed_data';
+import 'package:intl/intl.dart';
 import 'package:file_saver/file_saver.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:blue_pdf/state_providers.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
 class SavePdfOverlay extends ConsumerStatefulWidget {
   final Uint8List pdfBytes;
@@ -14,29 +18,60 @@ class SavePdfOverlay extends ConsumerStatefulWidget {
 }
 
 class _SavePdfOverlayState extends ConsumerState<SavePdfOverlay> {
-  final TextEditingController _filenameController = TextEditingController(text: "merged.pdf");
+  late TextEditingController _filenameController;
+
+  @override
+  void initState() {
+    super.initState();
+    final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+    final defaultName = "bluepdf_$timestamp.pdf";
+    _filenameController = TextEditingController(text: defaultName);
+  }
 
   Future<void> _saveFile() async {
     final filename = _filenameController.text.trim();
     if (filename.isEmpty) return;
 
     try {
-      final res = await FileSaver.instance.saveFile(
+      // ✅ Save to public Downloads folder
+      final res = await FileSaver.instance.saveAs(
         name: filename.replaceAll(".pdf", ""),
-        bytes: widget.pdfBytes,
         ext: "pdf",
+        bytes: widget.pdfBytes,
         mimeType: MimeType.pdf,
+        filePath: "Download",
       );
 
+      print("Saved path: $res");
+
+      // ✅ Update recent list
       ref.read(savePathProvider.notifier).state = res;
+
+      final currentList = ref.read(recentFilesProvider);
+      if (!currentList.contains(res)) {
+        ref.read(recentFilesProvider.notifier).state = [...currentList, ?res];
+      }
+
+      // ✅ Save a copy to app cache
+      final cacheDir = await getTemporaryDirectory();
+      final cacheFilePath = p.join(cacheDir.path, filename);
+      final cacheFile = File(cacheFilePath);
+      await cacheFile.writeAsBytes(widget.pdfBytes);
+
+      // ✅ Save cache path to state
+      ref.read(cachePathProvider.notifier).state = cacheFilePath;
+      print("Cached path: $cacheFilePath");
+
       if (mounted) Navigator.pop(context);
 
     } catch (e) {
+      print("❌ Exception: $e");
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("❌ Failed to save: $e")),
       );
     }
   }
+
 
   @override
   Widget build(BuildContext context) {

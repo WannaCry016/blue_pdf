@@ -11,6 +11,7 @@ var isFileLoadingProvider = StateProvider<bool>((ref) => false);
 final isProcessingProvider = StateProvider<bool>((ref) => false);
 final savePathProvider = StateProvider<String?>((ref) => null);
 final mergedPdfBytesProvider = StateProvider<Uint8List?>((ref) => null);
+final cachePathProvider = StateProvider<String?>((ref) => null);
 
 class ThemePrefs {
   static const _themeKey = 'theme_mode';

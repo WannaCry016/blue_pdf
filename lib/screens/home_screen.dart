@@ -1,12 +1,12 @@
 import 'dart:io';
 import 'dart:ui';
+import 'package:blue_pdf/screens/pdf_viewer_screen.dart';
 import 'package:flutter/foundation.dart';
+import 'package:open_filex/open_filex.dart';
 import 'camera.dart';
 import 'dropdown.dart';
 import 'process_success_screen.dart';
 import 'about_page.dart';
-import 'image_viewer_screen.dart';
-import 'pdf_viewer_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:blue_pdf/main.dart';
@@ -46,6 +46,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     try {
       String? outputPath;
+      String? cachePath;
       Uint8List resultBytes;
 
       final filePaths = selectedFiles.map((f) => f.path!).toList();
@@ -75,16 +76,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       );
 
       outputPath = ref.read(savePathProvider);
+      cachePath = ref.read(cachePathProvider);
       final recent = ref.read(recentFilesProvider);
       final updated = [outputPath, ...recent].toSet().toList();
       ref.read(recentFilesProvider.notifier).state =
           updated.cast<String>().take(4).toList();
+        
 
       // Navigate to success screen
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => ProcessSuccessScreen(resultPath: outputPath!),
+          builder: (_) => ProcessSuccessScreen(resultPath: outputPath!, cachePath: cachePath!),
         ),
       );
     } catch (e) {
@@ -415,20 +418,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               },
                               child: const Icon(Icons.close_rounded, color: Colors.redAccent, size: 20),
                             ),
-                            onTap: () {
+                            onTap: () async {
                               final filePath = file.path!;
                               ref.read(selectedFilePathProvider.notifier).state = filePath;
 
                               if (file.extension == 'pdf') {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(builder: (_) => const PdfViewerScreen()),
-                                );
+                                await OpenFilex.open(filePath);
                               } else if (['jpg', 'jpeg', 'png', 'gif'].contains(file.extension!.toLowerCase())) {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(builder: (_) => const ImageViewerScreen()),
-                                );
+                                await OpenFilex.open(filePath);
                               } else {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(content: Text("Unsupported file type.")),
@@ -526,28 +523,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
             const SizedBox(height: 36),
             
-            if (selectedFiles.isEmpty)
-              Row(
-                children: [
-                  const Icon(Icons.history, color: Colors.blueAccent, size: 22),
-                  const SizedBox(width: 8),
-                  Text(
-                    "Recently Created Files",
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: textColor,
-                    ),
-                  ),
-                ],
-              ),
-
-
             const SizedBox(height: 25),
             Flexible(
               child: Align(
                 alignment: Alignment.topCenter,
-                child: selectedFiles.isEmpty && recentFiles.isEmpty
+                child: selectedFiles.isEmpty
                     ? Container(
                         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
                         padding: const EdgeInsets.all(40),
@@ -567,24 +547,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                               Image.asset(
-                                'assets/1.png',
-                                height: 100,
-                                width: 100,
+                                'assets/4.jpg',
+                                height: 150,
+                                width: 150,
                                 fit: BoxFit.contain,
                               ),
-                            const SizedBox(height: 20),
+                            const SizedBox(height: 12),
                             Text(
-                              "No recent files yet!",
-                              style: TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w600,
-                                color: textColor.withOpacity(0.85),
-                                letterSpacing: 0.4,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              "Start by creating or uploading one.",
+                              "Start by choosing a tool or uploading a file.",
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 fontSize: 14,
@@ -597,95 +567,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           ],
                         ),
                       )
-                    : ListView.builder(
-                        itemCount: recentFiles.length,
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        itemBuilder: (context, index) {
-                          final filePath = recentFiles[index];
-                          final fileName = filePath.split('/').last;
-                          final isPdf = fileName.toLowerCase().endsWith('.pdf');
-
-                          final file = File(filePath);
-                          final fileStat = file.existsSync() ? file.statSync() : null;
-
-                          String metaText = '';
-                          if (fileStat != null) {
-                            final sizeInKB = (fileStat.size / 1024).toStringAsFixed(1);
-                            final modified = fileStat.modified;
-                            final formattedDate =
-                                "${modified.day.toString().padLeft(2, '0')}/${modified.month.toString().padLeft(2, '0')}/${modified.year}";
-                            metaText = "$sizeInKB KB • Modified $formattedDate";
-                          }
-
-                          return Container(
-                            margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black12.withOpacity(0.04),
-                                  blurRadius: 6,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                              border: Border.all(color: Colors.grey.shade200),
-                            ),
-                            child: ListTile(
-                              dense: true,
-                              visualDensity: const VisualDensity(vertical: -2),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              leading: Container(
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  color: isPdf ? Colors.blue.shade50 : Colors.green.shade50,
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Icon(
-                                  isPdf ? Icons.picture_as_pdf_outlined : Icons.image_outlined,
-                                  color: isPdf ? Colors.blueAccent : Colors.green,
-                                  size: 22,
-                                ),
-                              ),
-                              title: Text(
-                                fileName,
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 15, // 🔼 Increased font size
-                                  color: Colors.grey.shade900,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              subtitle: metaText.isNotEmpty
-                                  ? Text(
-                                      metaText,
-                                      style: TextStyle(fontSize: 11.5, color: Colors.grey.shade500),
-                                    )
-                                  : null,
-                              trailing: Icon(
-                                Icons.arrow_forward_ios_rounded,
-                                size: 14,
-                                color: Colors.grey.shade400,
-                              ),
-                              onTap: () {
-                                ref.read(selectedFilePathProvider.notifier).state = filePath;
-
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) =>
-                                        isPdf ? const PdfViewerScreen() : ImageViewerScreen(),
-                                  ),
-                                );
-                              },
-                            ),
-                          );
-                        },
-                      ),
-
-
+                    : const SizedBox(height:10)
               ),
             ),
 

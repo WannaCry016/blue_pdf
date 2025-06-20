@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'package:blue_pdf/screens/pdf_viewer_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:blue_pdf/main.dart';
 import 'package:blue_pdf/state_providers.dart';
@@ -8,10 +7,30 @@ import 'about_page.dart';  // adjust as per your project structure
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 
-class ProcessSuccessScreen extends ConsumerWidget {
+class ProcessSuccessScreen extends ConsumerStatefulWidget {
   final String resultPath;
+  final String cachePath;
 
-  const ProcessSuccessScreen({super.key, required this.resultPath});
+  const ProcessSuccessScreen({super.key, required this.resultPath, required this.cachePath});
+
+  @override
+  ConsumerState<ProcessSuccessScreen> createState() => _ProcessSuccessScreenState();
+}
+
+class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
+  @override
+  void dispose() {
+    _deleteCacheFile();
+    super.dispose();
+  }
+
+  void _deleteCacheFile() async {
+    final file = File(widget.cachePath);
+    if (await file.exists()) {
+      await file.delete();
+      print("🧹 Cache file deleted on exit: ${widget.cachePath}");
+    }
+  }
 
   String _getFileSize(String path) {
     try {
@@ -25,7 +44,7 @@ class ProcessSuccessScreen extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? Colors.grey[900] : const Color(0xFFEEEEF0);
     final textColor = isDark ? Colors.white : Colors.black87;
@@ -36,7 +55,7 @@ class ProcessSuccessScreen extends ConsumerWidget {
       ref.read(imageToPdfFilesProvider.notifier).clear();
     });
 
-    final fileSize = _getFileSize(resultPath);
+    final fileSize = _getFileSize(widget.resultPath);
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -139,65 +158,36 @@ class ProcessSuccessScreen extends ConsumerWidget {
 
                   const SizedBox(height: 20),
 
-                  const SizedBox(height: 20),
-
-                  /// PDF Info Box (Clickable)
-                  GestureDetector(
-                    onTap: () {
-                      ref.read(selectedFilePathProvider.notifier).state = resultPath;
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const PdfViewerScreen(), // 👈 no arguments passed
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.picture_as_pdf, size: 28, color: Colors.redAccent),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              widget.resultPath,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.black87,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              fileSize,
+                              style: const TextStyle(fontSize: 13, color: Colors.grey),
+                            ),
+                          ],
                         ),
-                      );
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: cardColor,
-                        borderRadius: BorderRadius.circular(14),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
-                            blurRadius: 8,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
                       ),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: Colors.blueAccent.withOpacity(0.1),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(Icons.picture_as_pdf, size: 30, color: Colors.blueAccent),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  resultPath.split("/").last,
-                                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  fileSize,
-                                  style: TextStyle(fontSize: 13, color: Colors.grey),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
-                        ],
-                      ),
-                    ),
+                    ],
                   ),
+
 
                   const SizedBox(height: 28),
 
@@ -222,8 +212,22 @@ class ProcessSuccessScreen extends ConsumerWidget {
                         child: ElevatedButton.icon(
                           icon: const Icon(Icons.share),
                           label: const Text("Share", style: TextStyle(fontSize: 15)),
-                          onPressed: () {
-                            Share.shareXFiles([XFile(resultPath)], text: 'Here is your PDF');
+                          onPressed: () async {
+                            final file = File(widget.cachePath);
+
+                            if (await file.exists()) {
+                              try {
+                                await SharePlus.instance.share(
+                                  ShareParams(
+                                    files: [XFile(file.path, mimeType: 'application/pdf')],
+                                  )
+                                );
+                              } catch (e) {
+                                print('❌ Share failed: $e');
+                              }
+                            } else {
+                              print('❌ Cache file not found: ${file.path}');
+                            }
                           },
                           style: ElevatedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 16),
@@ -233,9 +237,6 @@ class ProcessSuccessScreen extends ConsumerWidget {
                           ),
                         ),
                       ),
-
-
-
                     ],
                   ),
                 ],
