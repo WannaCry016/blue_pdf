@@ -31,6 +31,10 @@ class _CustomDropdownState extends State<CustomDropdown> {
       "label": "Merge PDF",
       "icon": Icons.picture_as_pdf_rounded,
     },
+    {
+      "label": "Encrypt PDF",
+      "icon": Icons.lock_rounded, // 🔐 secure lock icon
+    },
   ];
 
   void _toggleDropdown() {

@@ -211,28 +211,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               );
             },
           ),
-
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            child: IconButton(
-              key: ValueKey(themeNotifier.value),
-              tooltip: "Toggle Theme",
-              icon: Icon(
-                themeNotifier.value == ThemeMode.dark
-                    ? Icons.dark_mode
-                    : Icons.light_mode,
-                color: Colors.white,
-                size: 24,
-              ),
-              onPressed: () async {
-                final newTheme = themeNotifier.value == ThemeMode.dark
-                    ? ThemeMode.light
-                    : ThemeMode.dark;
-                themeNotifier.value = newTheme;
-                await ThemePrefs.saveThemeMode(newTheme);
-              },
-            ),
-          ),
         ],
       ),
       body: Padding(
