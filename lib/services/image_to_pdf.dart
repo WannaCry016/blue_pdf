@@ -1,56 +1,29 @@
-import 'dart:io';
-import 'dart:typed_data';
-import 'package:image/image.dart' as img;
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
+import 'package:flutter/services.dart';
 
-Future<Uint8List> imageToPdf(Map<String, List<String>> args) async {
-  final filePaths = args['filePaths']!;
-  final pdf = pw.Document();
+/// Invokes the native code to generate a PDF from images.
+///
+/// Returns the [String] path to the temporary PDF file created in the app's cache.
+Future<String> imageToPdfNative(List<String> imagePaths) async {
+  const platform = MethodChannel('bluepdf.native/Pdf_utility');
 
-  for (final path in filePaths) {
-    final bytes = File(path).readAsBytesSync();
-    final decoded = img.decodeImage(bytes);
-    if (decoded == null) continue;
+  try {
+    // We expect a String path from the native side.
+    final String? filePath = await platform.invokeMethod<String>(
+      'generatePdfFromImages',
+      {'paths': imagePaths},
+    );
 
-    final imageProvider = pw.MemoryImage(bytes);
-    final imgW = decoded.width.toDouble();
-    final imgH = decoded.height.toDouble();
-
-    final pageW = PdfPageFormat.a4.width;
-    final pageH = PdfPageFormat.a4.height;
-
-    final imgAspect = imgW / imgH;
-    final pageAspect = pageW / pageH;
-
-    double finalW, finalH;
-
-    if (imgAspect > pageAspect) {
-      // Wider image — fill width
-      finalW = pageW;
-      finalH = pageW / imgAspect;
-    } else {
-      // Taller image — fill height
-      finalH = pageH;
-      finalW = pageH * imgAspect;
+    // If the native code fails to produce a path, throw an exception.
+    if (filePath == null || filePath.isEmpty) {
+      throw Exception('Native code failed to generate PDF and return a file path.');
     }
 
-    pdf.addPage(
-      pw.Page(
-        pageFormat: PdfPageFormat.a4,
-        margin: pw.EdgeInsets.zero,
-        build: (_) {
-          return pw.Center(
-            child: pw.Image(
-              imageProvider,
-              width: finalW,
-              height: finalH,
-            ),
-          );
-        },
-      ),
-    );
+    // Return the path directly. No reading or deleting here.
+    return filePath;
+    
+  } on PlatformException catch (e) {
+    // Forward any platform exceptions for the caller to handle.
+    print("PlatformException in imageToPdfNative: ${e.message}");
+    rethrow;
   }
-
-  return pdf.save();
 }

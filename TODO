@@ -16,3 +16,9 @@ File is instantly previewed via system viewer — no permissions needed
 Temp file auto-deleted — no mess
 Fully Flutter-only — no native hackery, no FileProvider, no permission prompts
 
+commands
+flutter build apk --split-per-abi
+keytool -list -v -keystore E:\PDF\blue_pdf\android\keystores\blue_pdf_release.keystore
+keytool -genkey -v -keystore blue_pdf_release.keystore -alias bluepdfkey -keyalg RSA -keysize 2048 -validity 10000
+
+

@@ -8,8 +8,6 @@ import androidx.annotation.NonNull
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import com.tom_roush.pdfbox.io.MemoryUsageSetting
 import com.tom_roush.pdfbox.multipdf.PDFMergerUtility
-import com.tom_roush.pdfbox.pdmodel.encryption.AccessPermission
-import com.tom_roush.pdfbox.pdmodel.encryption.StandardProtectionPolicy
 import com.tom_roush.pdfbox.pdmodel.PDDocument
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -64,27 +62,6 @@ class MainActivity : FlutterActivity() {
                         }
                     } else {
                         result.error("NO_PATHS", "No PDF paths provided for merging", null)
-                    }
-                }
-
-                "encryptPdf" -> {
-                    val path = call.argument<String>("path")
-                    val password = call.argument<String>("password")
-                    if (path != null && password != null) {
-                        CoroutineScope(Dispatchers.IO).launch {
-                            try {
-                                val encryptedPath = encryptPdfNative(path, password)
-                                withContext(Dispatchers.Main) {
-                                    result.success(encryptedPath)
-                                }
-                            } catch (e: Exception) {
-                                withContext(Dispatchers.Main) {
-                                    result.error("ENCRYPT_ERROR", "Failed to encrypt PDF: ${e.message}", null)
-                                }
-                            }
-                        }
-                    } else {
-                        result.error("MISSING_ARGS", "Missing path or password", null)
                     }
                 }
 
@@ -170,25 +147,4 @@ class MainActivity : FlutterActivity() {
 
         return@withContext outputFile.absolutePath
     }
-
-    private suspend fun encryptPdfNative(path: String, password: String): String = withContext(Dispatchers.IO) {
-        val inputFile = File(path)
-        val outputFile = File(context.cacheDir, "encrypted_pdf_${System.currentTimeMillis()}.pdf")
-
-        PDDocument.load(inputFile).use { document ->
-            val keyLength = 128 // or 256 if you want stronger encryption
-            val accessPermission = AccessPermission()
-            val protectionPolicy = StandardProtectionPolicy(password, password, accessPermission)
-            protectionPolicy.encryptionKeyLength = keyLength
-            protectionPolicy.permissions = accessPermission
-
-            document.protect(protectionPolicy)
-            document.save(outputFile)
-        }
-
-        return@withContext outputFile.absolutePath
-    }
-
-
-
 }

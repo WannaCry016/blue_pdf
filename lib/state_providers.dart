@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -13,31 +12,6 @@ final savePathProvider = StateProvider<String?>((ref) => null);
 final mergedPdfBytesProvider = StateProvider<Uint8List?>((ref) => null);
 final cachePathProvider = StateProvider<String?>((ref) => null);
 
-class ThemePrefs {
-  static const _themeKey = 'theme_mode';
-
-  // Save theme mode
-  static Future<void> saveThemeMode(ThemeMode mode) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_themeKey, mode.name); // mode.name returns 'light', 'dark', or 'system'
-  }
-
-  // Load theme mode
-  static Future<ThemeMode> loadThemeMode() async {
-    final prefs = await SharedPreferences.getInstance();
-    final themeStr = prefs.getString(_themeKey) ?? 'light';
-
-    switch (themeStr) {
-      case 'dark':
-        return ThemeMode.dark;
-      case 'system':
-        return ThemeMode.system;
-      case 'light':
-      default:
-        return ThemeMode.light;
-    }
-  }
-}
 
 var selectedFilePathProvider = StateProvider<String?>((ref) => null);
 final imageToPdfFilesProvider =
@@ -51,6 +25,7 @@ final mergePdfFilesProvider =
 final encryptPdfFilesProvider =
     StateNotifierProvider<SelectedFilesNotifier, List<PlatformFile>>(
         (ref) => SelectedFilesNotifier());
+
 
 class SelectedFilesNotifier extends StateNotifier<List<PlatformFile>> {
   SelectedFilesNotifier() : super([]);

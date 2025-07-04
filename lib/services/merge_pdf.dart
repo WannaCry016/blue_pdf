@@ -1,55 +1,26 @@
-import 'dart:io';
-import 'dart:typed_data';
-import 'dart:ui';
-import 'package:syncfusion_flutter_pdf/pdf.dart';
+import 'package:flutter/services.dart';
 
-Future<Uint8List> mergePDFs(List<String> filePaths) async {
-  final outputPdf = PdfDocument();
+/// Invokes the native code to merge multiple PDF files.
+///
+/// Returns the [String] path to the temporary merged PDF file created in the app's cache.
+Future<String> mergePdfsNative(List<String> filePaths) async {
+  const platform = MethodChannel('bluepdf.native/Pdf_utility');
 
-  for (final path in filePaths) {
-    final bytes = File(path).readAsBytesSync();
-    final doc = PdfDocument(inputBytes: bytes);
+  try {
+    // Invoke the 'mergePdfs' method on the native side.
+    final String? filePath = await platform.invokeMethod<String>(
+      'mergePdfs',
+      {'paths': filePaths},
+    );
 
-    for (int i = 0; i < doc.pages.count; i++) {
-      final template = doc.pages[i].createTemplate();
-      final originalWidth = template.size.width;
-      final originalHeight = template.size.height;
-
-      final newPage = outputPdf.pages.add();
-      final targetSize = newPage.getClientSize();
-      final targetWidth = targetSize.width;
-      final targetHeight = targetSize.height;
-
-      // Calculate scale factor (maintain aspect ratio)
-      final scaleX = targetWidth / originalWidth;
-      final scaleY = targetHeight / originalHeight;
-      final scale = scaleX < scaleY ? scaleX : scaleY;
-
-      final drawWidth = originalWidth * scale;
-      final drawHeight = originalHeight * scale;
-
-      final offsetX = (targetWidth - drawWidth) / 2;
-      final offsetY = (targetHeight - drawHeight) / 2;
-
-      // Draw template with correct position and scaled size
-      newPage.graphics.drawPdfTemplate(
-        template,
-        Offset(offsetX, offsetY),
-        Size(drawWidth, drawHeight),
-      );
+    if (filePath == null || filePath.isEmpty) {
+      throw Exception('Native code failed to merge PDFs and return a file path.');
     }
 
-    doc.dispose();
+    return filePath;
+
+  } on PlatformException catch (e) {
+    print("PlatformException in mergePdfsNative: ${e.message}");
+    rethrow;
   }
-
-  final resultBytes = await outputPdf.save();
-  outputPdf.dispose();
-  return Uint8List.fromList(resultBytes);
-}
-
-
-// Isolate-compatible wrapper
-Future<Uint8List> mergePDFsIsolate(Map<String, List<String>> args) async {
-  final filePaths = args['filePaths']!;
-  return await mergePDFs(filePaths);
 }

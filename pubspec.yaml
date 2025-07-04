@@ -36,29 +36,26 @@ dependencies:
   cupertino_icons: ^1.0.8
   share_plus: ^11.0.0
   file_picker: ^10.2.0
-  flutter_pdfview: ^1.4.0+1
   icons_launcher: ^3.0.1
   file_saver: ^0.2.14
   open_filex: ^4.7.0
+  intl: ^0.18.1
   mime: ^1.0.4
   path: ^1.8.3
-
+  pro_image_editor: ^10.2.2
+  
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  syncfusion_flutter_pdfviewer: ^29.2.11
   path_provider: ^2.1.5
   image_picker: ^1.1.2
-  pdf: ^3.11.3
   permission_handler: ^12.0.0+1
   flutter_riverpod: ^2.6.1
   shared_preferences: ^2.5.3
-  pdfx: ^2.3.0
   flutter_launcher_icons: ^0.13.1
   url_launcher: ^6.2.5 # or latest version
   dropdown_button2: ^2.3.9
   image_cropper: ^9.1.0
-  path: ^1.8.3
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is

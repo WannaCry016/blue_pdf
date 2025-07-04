@@ -1,23 +1,15 @@
-import 'dart:typed_data';
-import 'package:syncfusion_flutter_pdf/pdf.dart';
+import 'package:flutter/services.dart';
 
-/// Encrypts a PDF using only a user password.
-/// This makes the PDF require a password to open.
-Future<List<int>> encryptPdf({
-  required Uint8List pdfBytes,
-  required String userPassword,
-}) async {
-  // Load the existing PDF document
-  final PdfDocument document = PdfDocument(inputBytes: pdfBytes);
-
-  // Set only the user password
-  document.security.userPassword = userPassword;
-
-  // Save and return encrypted PDF as bytes
-  final List<int> encryptedBytes = await document.save();
-
-  // Dispose the document to free resources
-  document.dispose();
-
-  return encryptedBytes;
+Future<String?> encryptPdf(String path, String password) async {
+  const platform = MethodChannel('bluepdf.native/Pdf_utility');
+  try {
+    final result = await platform.invokeMethod<String>('encryptPdf', {
+      'path': path,
+      'password': password,
+    });
+    return result;
+  } catch (e) {
+    print('❌ Error encrypting PDF: $e');
+    return null;
+  }
 }

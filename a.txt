@@ -1,10 +1,13 @@
 import 'dart:io';
+import 'package:android_intent_plus/android_intent.dart';
+import 'package:android_intent_plus/flag.dart';
+import 'package:blue_pdf/screens/pdf_viewer_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:blue_pdf/state_providers.dart';
+import 'package:mime/mime.dart';
 import 'package:share_plus/share_plus.dart';
 import 'about_page.dart';  // adjust as per your project structure
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:open_filex/open_filex.dart';
 
 
 class ProcessSuccessScreen extends ConsumerStatefulWidget {
@@ -31,6 +34,38 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
       print("🧹 Cache file deleted on exit: ${widget.cachePath}");
     }
   }
+  
+  Future<void> _openPdf(BuildContext context, String path) async {
+    final file = File(path);
+    if (!await file.exists()) {
+      print('❌ Preview file missing: $path');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("File not found in cache.")),
+      );
+      return;
+    }
+
+    final mimeType = lookupMimeType(path) ?? 'application/pdf';
+
+    final intent = AndroidIntent(
+      action: 'android.intent.action.VIEW',
+      type: mimeType,
+      data: Uri.file(path).toString(),
+      flags: <int>[
+        Flag.FLAG_GRANT_READ_URI_PERMISSION,
+        Flag.FLAG_ACTIVITY_NEW_TASK,
+      ],
+    );
+
+    try {
+      await intent.launch();
+    } catch (e) {
+      print('❌ Could not open file: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Failed to open PDF viewer.")),
+      );
+    }
+  }
 
   String _getFileSize(String path) {
     try {
@@ -53,7 +88,6 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(mergePdfFilesProvider.notifier).clear();
       ref.read(imageToPdfFilesProvider.notifier).clear();
-      ref.read(encryptPdfFilesProvider.notifier).clear();
     });
 
     final fileSize = _getFileSize(widget.resultPath);
@@ -195,26 +229,7 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
                     icon: const Icon(Icons.picture_as_pdf_rounded),
                     label: const Text("Preview", style: TextStyle(fontSize: 15)),
                     onPressed: () async {
-                      final file = File(widget.cachePath);
-
-                      if (await file.exists()) {
-                        final result = await OpenFilex.open(
-                          file.path,
-                          type: "application/pdf",
-                        );
-
-                        if (result.type != ResultType.done) {
-                          print('❌ Could not open file: ${result.message}');
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text("Failed to open PDF viewer.")),
-                          );
-                        }
-                      } else {
-                        print('❌ Preview file missing: ${file.path}');
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text("File not found in cache.")),
-                        );
-                      }
+                      await _openPdf(context, widget.cachePath);
                     },
 
                     style: ElevatedButton.styleFrom(

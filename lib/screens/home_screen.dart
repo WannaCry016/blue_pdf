@@ -1,6 +1,7 @@
+
 import 'dart:io';
 import 'dart:ui';
-import 'package:blue_pdf/screens/pdf_viewer_screen.dart';
+import 'package:blue_pdf/services/pdf_encryptor.dart';
 import 'package:flutter/foundation.dart';
 import 'package:open_filex/open_filex.dart';
 import 'camera.dart';
@@ -9,7 +10,6 @@ import 'process_success_screen.dart';
 import 'about_page.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:blue_pdf/main.dart';
 import 'save_pdf.dart';
 import 'package:blue_pdf/services/image_to_pdf.dart';
 import 'package:blue_pdf/services/merge_pdf.dart';
@@ -26,76 +26,163 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
 
+  final fileProviders = {
+      'Merge PDF': mergePdfFilesProvider,
+      'Image to PDF': imageToPdfFilesProvider,
+      'Encrypt PDF': encryptPdfFilesProvider,
+    };
+
+  Future<String?> _promptPassword(BuildContext context) async {
+    final controller = TextEditingController();
+    return await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Enter Password"),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(hintText: "Password"),
+          obscureText: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, null),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: const Text("Encrypt"),
+          ),
+        ],
+      ),
+    );
+  }
+
+
   void _processFiles() async {
     final selectedTool = ref.read(selectedToolProvider);
-
-    // Get correct file list based on selected tool
-    final selectedFiles = selectedTool == 'Merge PDF'
-        ? ref.read(mergePdfFilesProvider)
-        : ref.read(imageToPdfFilesProvider);
+    // Use fallback to prevent crash if tool is not in the map
+    final currentProvider = fileProviders[selectedTool] ?? mergePdfFilesProvider;
+    final selectedFiles = ref.read(currentProvider);
 
     if (selectedTool == null || selectedFiles.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please select tool and files first.")),
+        const SnackBar(content: Text("Please select a tool and files first.")),
       );
       return;
     }
 
     ref.read(isProcessingProvider.notifier).state = true;
-    await Future.delayed(Duration.zero); // Let UI update before heavy work
+
+    // === Show loading dialog immediately ===
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Dialog(
+        backgroundColor: Colors.white,
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 20, horizontal: 24),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 20),
+              Flexible(child: Text("Processing PDF...", style: TextStyle(fontSize: 16))),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    // Let UI fully render before native call
+    await Future.delayed(const Duration(milliseconds: 200));
+
+    String? initialCachePath;
 
     try {
-      String? outputPath;
-      String? cachePath;
-      Uint8List resultBytes;
-
+      Uint8List? resultBytes;
       final filePaths = selectedFiles.map((f) => f.path!).toList();
 
+      // --- Native processing ---
       if (selectedTool == 'Merge PDF') {
-        resultBytes = await compute(
-          mergePDFsIsolate as ComputeCallback<Map<String, List<String>>, Uint8List>,
-          {'filePaths': filePaths},
-        );
-      } else {
-        resultBytes = await compute(
-          imageToPdf as ComputeCallback<Map<String, List<String>>, Uint8List>,
-          {'filePaths': filePaths},
-        );
+        initialCachePath = await mergePdfsNative(filePaths);
+      } else if (selectedTool == 'Image to PDF') {
+        initialCachePath = await imageToPdfNative(filePaths);
+      } else if (selectedTool == 'Encrypt PDF') {
+        final password = await _promptPassword(context);
+        if (password == null || password.isEmpty) {
+          throw Exception("Encryption password not provided.");
+        }
+        initialCachePath = await encryptPdf(filePaths.first, password);
+      } 
+
+
+      if (initialCachePath == null) {
+        throw Exception("Failed to create temporary PDF file.");
       }
 
-      // Store result in memory
-      ref.read(mergedPdfBytesProvider.notifier).state = resultBytes;
-      ref.read(isProcessingProvider.notifier).state = false;
+      final tempFile = File(initialCachePath);
+      if (await tempFile.exists()) {
+        resultBytes = await tempFile.readAsBytes();
+      } else {
+        throw Exception("Temporary file not found at $initialCachePath");
+      }
 
-      // Show save overlay
-      await showModalBottomSheet(
+      ref.read(mergedPdfBytesProvider.notifier).state = resultBytes;
+
+      // Dismiss loading dialog before save screen
+      if (context.mounted) Navigator.pop(context);
+
+      final bool? didSave = await showModalBottomSheet<bool>(
         context: context,
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
-        builder: (_) => SavePdfOverlay(pdfBytes: resultBytes),
+        builder: (_) => SavePdfOverlay(
+          pdfBytes: resultBytes!,
+          cachePath: initialCachePath!,
+        ),
       );
 
-      outputPath = ref.read(savePathProvider);
-      cachePath = ref.read(cachePathProvider);
+      if (didSave != true) {
+        if (await tempFile.exists()) {
+          await tempFile.delete();
+          print("Save cancelled. Temp file deleted: $initialCachePath");
+        }
+        return;
+      }
+
+      final outputPath = ref.read(savePathProvider);
+      if (outputPath == null || outputPath.isEmpty) {
+        throw Exception("Save path is missing after successful save.");
+      }
+
       final recent = ref.read(recentFilesProvider);
       final updated = [outputPath, ...recent].toSet().toList();
-      ref.read(recentFilesProvider.notifier).state =
-          updated.cast<String>().take(4).toList();
-        
+      ref.read(recentFilesProvider.notifier).state = updated.take(4).toList();
 
-      // Navigate to success screen
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => ProcessSuccessScreen(resultPath: outputPath!, cachePath: cachePath!),
+          builder: (_) => ProcessSuccessScreen(
+            resultPath: outputPath,
+            cachePath: initialCachePath!,
+          ),
         ),
       );
     } catch (e) {
-      print("Error: ${e.toString()}");
+      print("Error in _processFiles: ${e.toString()}");
+
+      // Make sure to close the spinner in case of error
+      if (context.mounted) Navigator.pop(context);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("An error occurred: ${e.toString()}")),
+      );
     } finally {
       ref.read(isProcessingProvider.notifier).state = false;
     }
   }
+
+
 
 
   void _onToolSelect() async {
@@ -136,6 +223,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ref.read(imageToPdfFilesProvider.notifier).addFiles(result.files);
           }
           break;
+        
+        case 'Encrypt PDF':
+          result = await FilePicker.platform.pickFiles(
+            type: FileType.custom,
+            allowedExtensions: ['pdf'],
+            allowMultiple: false, // ✅ Only allow one PDF
+            withData: false,
+          );
+          if (result != null && result.files.isNotEmpty) {
+            ref.read(encryptPdfFilesProvider.notifier).addFiles(result.files); 
+          }
+          break;
+
       }
     } catch (e, stackTrace) {
       debugPrint("Error during tool selection: $e");
@@ -152,15 +252,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
 
-    var selectedTool = ref.watch(selectedToolProvider);
+    final selectedTool = ref.watch(selectedToolProvider);
 
-    final filesNotifier = selectedTool == 'Merge PDF'
-      ? ref.read(mergePdfFilesProvider.notifier)
-      : ref.read(imageToPdfFilesProvider.notifier);
+    // Map tool name to its respective provider
 
-    final selectedFiles = selectedTool == 'Merge PDF'
-        ? ref.watch(mergePdfFilesProvider)
-        : ref.watch(imageToPdfFilesProvider);
+    // Use fallback to avoid crashes if tool not found
+    final currentProvider = fileProviders[selectedTool] ?? mergePdfFilesProvider;
+
+    final filesNotifier = ref.read(currentProvider.notifier);
+    final selectedFiles = ref.watch(currentProvider);
+
+    // final filesNotifier = ref.read(fileProviders[selectedTool]!.notifier);
+    // final selectedFiles = ref.watch(fileProviders[selectedTool]!);
 
     final isLoading = ref.watch(isFileLoadingProvider);
     var recentFiles = ref.watch(recentFilesProvider);
@@ -445,41 +548,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           borderRadius: BorderRadius.circular(30),
                           onTap: _processFiles,
                           child: Center(
-                            child: isProcessing
-                                ? Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: const [
-                                      SizedBox(
-                                        width: 18,
-                                        height: 18,
-                                        child: CircularProgressIndicator(
-                                          color: Colors.white,
-                                          strokeWidth: 2,
-                                        ),
-                                      ),
-                                      SizedBox(width: 10),
-                                      Text("Processing", style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
-                                    ],
-                                  )
-                                : Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: const [
-                                      Icon(Icons.play_arrow_rounded, size: 22, color: Colors.white),
-                                      SizedBox(width: 8),
-                                      Text(
-                                        "Process",
-                                        style: TextStyle(
-                                          fontSize: 15.5,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.white,
-                                          letterSpacing: 0.4,
-                                        ),
-                                      ),
-                                    ],
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: const [
+                                Icon(Icons.play_arrow_rounded, size: 22, color: Colors.white),
+                                SizedBox(width: 8),
+                                Text(
+                                  "Process",
+                                  style: TextStyle(
+                                    fontSize: 15.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white,
+                                    letterSpacing: 0.4,
                                   ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
+
                     ),
                   ),
 
@@ -525,7 +613,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                               Image.asset(
-                                'assets/4.jpg',
+                                'assets/2.png',
                                 height: 150,
                                 width: 150,
                                 fit: BoxFit.contain,
@@ -558,6 +646,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 child: CameraButton(),
               ),
             ),
+
 
           ],
         ),
