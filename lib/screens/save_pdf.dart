@@ -1,16 +1,17 @@
-
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:intl/intl.dart';
 import 'package:file_saver/file_saver.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as path;
+import 'package:path_provider/path_provider.dart';
 import 'package:blue_pdf/state_providers.dart';
 
 class SavePdfOverlay extends ConsumerStatefulWidget {
   final Uint8List pdfBytes;
-  final String cachePath;
 
-  const SavePdfOverlay({super.key, required this.pdfBytes, required this.cachePath});
+  const SavePdfOverlay({super.key, required this.pdfBytes});
 
   @override
   ConsumerState<SavePdfOverlay> createState() => _SavePdfOverlayState();
@@ -36,58 +37,52 @@ class _SavePdfOverlayState extends ConsumerState<SavePdfOverlay> {
       return;
     }
 
-    // 1. Show a loading indicator immediately for better UX
     showDialog(
       context: context,
-      barrierDismissible: false, // User cannot dismiss the dialog by tapping outside
-      builder: (BuildContext context) {
-        return const Dialog(
-          child: Padding(
-            padding: EdgeInsets.all(20.0),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(width: 20),
-                Text("Saving PDF..."),
-              ],
-            ),
+      barrierDismissible: false,
+      builder: (_) => const Dialog(
+        child: Padding(
+          padding: EdgeInsets.all(20.0),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 20),
+              Text("Saving PDF..."),
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
 
     try {
-      // 2. Create the two independent save operations as Futures
       final saveToPublicFuture = _saveToPublicDownloads(filename, widget.pdfBytes);
+      final saveToCacheFuture = _saveToAppCache(filename, widget.pdfBytes);
 
-      // 3. Run them concurrently and wait for both to complete
       final results = await Future.wait([
         saveToPublicFuture,
+        saveToCacheFuture,
       ]);
 
-      // 4. Get the results
-      final publicPath = results[0]; // Path from public save
+      final publicPath = results[0]; // From FileSaver
+      final cachePath = results[1]; // From app's cache
 
-      // 5. Update all Riverpod state providers at once
       ref.read(savePathProvider.notifier).state = publicPath;
-      ref.read(cachePathProvider.notifier).state = widget.cachePath;
+      ref.read(cachePathProvider.notifier).state = cachePath;
 
       final currentList = ref.read(recentFilesProvider);
       if (publicPath != null && !currentList.contains(publicPath)) {
         ref.read(recentFilesProvider.notifier).state = [...currentList, publicPath];
       }
 
-      // 6. Dismiss loading dialog and pop the screen on success
       if (mounted) {
-        Navigator.pop(context); // Dismiss the loading dialog
-        Navigator.pop(context, true); // Go back from the save screen
+        Navigator.pop(context); // dismiss loading
+        Navigator.pop(context, true); // return success
       }
-
     } catch (e) {
       print("❌ Exception during save: $e");
       if (mounted) {
-        Navigator.pop(context); // Dismiss the loading dialog on error
+        Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("❌ Failed to save file: $e")),
         );
@@ -95,8 +90,6 @@ class _SavePdfOverlayState extends ConsumerState<SavePdfOverlay> {
     }
   }
 
-  /// Helper function to save the file to the public 'Download' folder.
-  /// Returns the public file path.
   Future<String?> _saveToPublicDownloads(String filename, Uint8List bytes) async {
     final String finalFilename = filename.endsWith('.pdf') ? filename : '$filename.pdf';
     return await FileSaver.instance.saveAs(
@@ -107,7 +100,13 @@ class _SavePdfOverlayState extends ConsumerState<SavePdfOverlay> {
     );
   }
 
-
+  Future<String> _saveToAppCache(String filename, Uint8List bytes) async {
+    final cacheDir = await getTemporaryDirectory();
+    final String finalFilename = filename.endsWith('.pdf') ? filename : '$filename.pdf';
+    final File file = File(path.join(cacheDir.path, finalFilename));
+    await file.writeAsBytes(bytes);
+    return file.path;
+  }
 
   @override
   Widget build(BuildContext context) {

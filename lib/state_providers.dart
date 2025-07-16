@@ -26,6 +26,10 @@ final encryptPdfFilesProvider =
     StateNotifierProvider<SelectedFilesNotifier, List<PlatformFile>>(
         (ref) => SelectedFilesNotifier());
 
+final unlockPdfFilesProvider =
+    StateNotifierProvider<SelectedFilesNotifier, List<PlatformFile>>(
+        (ref) => SelectedFilesNotifier());
+
 
 class SelectedFilesNotifier extends StateNotifier<List<PlatformFile>> {
   SelectedFilesNotifier() : super([]);

@@ -2,6 +2,7 @@
 import 'dart:io';
 import 'dart:ui';
 import 'package:blue_pdf/services/pdf_encryptor.dart';
+import 'package:blue_pdf/services/unlock_pdf.dart';
 import 'package:flutter/foundation.dart';
 import 'package:open_filex/open_filex.dart';
 import 'camera.dart';
@@ -30,14 +31,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       'Merge PDF': mergePdfFilesProvider,
       'Image to PDF': imageToPdfFilesProvider,
       'Encrypt PDF': encryptPdfFilesProvider,
+      'Unlock PDF': unlockPdfFilesProvider,
     };
 
-  Future<String?> _promptPassword(BuildContext context) async {
+  Future<String?> _promptPassword(BuildContext context, {required String action}) async {
     final controller = TextEditingController();
     return await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text("Enter Password"),
+        title: Text("$action PDF"),
         content: TextField(
           controller: controller,
           decoration: const InputDecoration(hintText: "Password"),
@@ -50,12 +52,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: const Text("Encrypt"),
+            child: Text(action),
           ),
         ],
       ),
     );
   }
+
 
 
   void _processFiles() async {
@@ -108,13 +111,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       } else if (selectedTool == 'Image to PDF') {
         initialCachePath = await imageToPdfNative(filePaths);
       } else if (selectedTool == 'Encrypt PDF') {
-        final password = await _promptPassword(context);
+        final password = await _promptPassword(context, action: "Encrypt");
         if (password == null || password.isEmpty) {
           throw Exception("Encryption password not provided.");
         }
         initialCachePath = await encryptPdf(filePaths.first, password);
-      } 
+      } else if (selectedTool == 'Unlock PDF') {
+        final password = await _promptPassword(context, action: "Unlock");
 
+        if (password == null || password.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("🔑 Please enter a password to unlock the PDF.")),
+          );
+          return;
+        }
+
+        try {
+          initialCachePath = await unlockPdf(filePaths.first, password);
+        } catch (e) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("❌ Incorrect password. Please try again."),
+            ),
+          );
+          return;
+        }
+      }
 
       if (initialCachePath == null) {
         throw Exception("Failed to create temporary PDF file.");
@@ -138,7 +160,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         backgroundColor: Colors.transparent,
         builder: (_) => SavePdfOverlay(
           pdfBytes: resultBytes!,
-          cachePath: initialCachePath!,
         ),
       );
 
@@ -164,7 +185,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         MaterialPageRoute(
           builder: (_) => ProcessSuccessScreen(
             resultPath: outputPath,
-            cachePath: initialCachePath!,
           ),
         ),
       );
@@ -182,9 +202,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
-
-
-
   void _onToolSelect() async {
     try {
       final selectedTool = ref.read(selectedToolProvider);
@@ -193,7 +210,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Please select a tool.")),
         );
-        ref.read(isFileLoadingProvider.notifier).state = false;
         return;
       }
 
@@ -207,47 +223,95 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             allowMultiple: true,
             withData: false,
           );
-          if (result != null && result.files.isNotEmpty) {
-            ref.read(isFileLoadingProvider.notifier).state = true;
-            ref.read(mergePdfFilesProvider.notifier).addFiles(result.files);
-          }
           break;
 
         case 'Image to PDF':
           result = await FilePicker.platform.pickFiles(
-            type: FileType.image, 
+            type: FileType.image,
             allowMultiple: true,
             withData: false,
           );
-          if (result != null && result.files.isNotEmpty) {
-            ref.read(imageToPdfFilesProvider.notifier).addFiles(result.files);
-          }
           break;
-        
+
         case 'Encrypt PDF':
           result = await FilePicker.platform.pickFiles(
             type: FileType.custom,
             allowedExtensions: ['pdf'],
-            allowMultiple: false, // ✅ Only allow one PDF
+            allowMultiple: false,
             withData: false,
           );
-          if (result != null && result.files.isNotEmpty) {
-            ref.read(encryptPdfFilesProvider.notifier).addFiles(result.files); 
-          }
           break;
 
+        case 'Unlock PDF':
+          result = await FilePicker.platform.pickFiles(
+            type: FileType.custom,
+            allowedExtensions: ['pdf'],
+            allowMultiple: false,
+            withData: false,
+          );
+          break;
       }
+
+      // ✅ Only show loading dialog AFTER user has picked files
+      if (result != null && result.files.isNotEmpty) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => const Dialog(
+            backgroundColor: Colors.white,
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 20, horizontal: 24),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(width: 20),
+                  Flexible(
+                    child: Text(
+                      "Loading files...",
+                      style: TextStyle(fontSize: 16),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        // Short delay to make dialog visible
+        await Future.delayed(const Duration(milliseconds: 150));
+
+        // ✅ Add files to provider
+        switch (selectedTool) {
+          case 'Merge PDF':
+            ref.read(mergePdfFilesProvider.notifier).addFiles(result.files);
+            break;
+          case 'Image to PDF':
+            ref.read(imageToPdfFilesProvider.notifier).addFiles(result.files);
+            break;
+          case 'Encrypt PDF':
+            ref.read(encryptPdfFilesProvider.notifier).addFiles(result.files);
+            break;
+          case 'Unlock PDF':
+            ref.read(unlockPdfFilesProvider.notifier).addFiles(result.files);
+            break;
+        }
+      }
+
     } catch (e, stackTrace) {
       debugPrint("Error during tool selection: $e");
       debugPrint("StackTrace: $stackTrace");
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Something went wrong while picking files.")),
+        const SnackBar(content: Text("Something went wrong while picking files.")),
       );
     } finally {
-      ref.read(isFileLoadingProvider.notifier).state = false;
+      // ✅ Always dismiss dialog if open
+      if (Navigator.canPop(context)) Navigator.pop(context);
     }
   }
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -282,7 +346,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         flexibleSpace: Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
-              colors: [Color.fromARGB(255, 6, 42, 71), Color(0xFF64B5F6)],
+              colors: [Color(0xFF0D47A1), Color(0xFF1976D2)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
