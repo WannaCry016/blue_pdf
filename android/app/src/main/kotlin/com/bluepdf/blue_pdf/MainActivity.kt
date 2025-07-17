@@ -111,7 +111,46 @@ class MainActivity : FlutterActivity() {
                     }
                 }
 
-
+                "splitPdf" -> {
+                    val path = call.argument<String>("path")
+                    val startPage = call.argument<Int>("startPage")
+                    val endPage = call.argument<Int>("endPage")
+                    if (path != null && startPage != null && endPage != null) {
+                        CoroutineScope(Dispatchers.IO).launch {
+                            try {
+                                val splitPath = splitPdfNative(path, startPage, endPage)
+                                withContext(Dispatchers.Main) {
+                                    result.success(splitPath)
+                                }
+                            } catch (e: Exception) {
+                                withContext(Dispatchers.Main) {
+                                    result.error("SPLIT_ERROR", "Failed to split PDF: ${e.message}", null)
+                                }
+                            }
+                        }
+                    } else {
+                        result.error("MISSING_ARGS", "Missing path or page range", null)
+                    }
+                }
+                "reorderPdf" -> {
+                    val path = call.argument<String>("path")
+                    if (path != null) {
+                        CoroutineScope(Dispatchers.IO).launch {
+                            try {
+                                val imagePaths = reorderPdfNative(path)
+                                withContext(Dispatchers.Main) {
+                                    result.success(imagePaths)
+                                }
+                            } catch (e: Exception) {
+                                withContext(Dispatchers.Main) {
+                                    result.error("REORDER_ERROR", "Failed to convert PDF to images: ${e.message}", null)
+                                }
+                            }
+                        }
+                    } else {
+                        result.error("MISSING_ARGS", "Missing path", null)
+                    }
+                }
 
                 else -> result.notImplemented()
             }
@@ -234,6 +273,47 @@ class MainActivity : FlutterActivity() {
         return@withContext outputFile.absolutePath
     }
 
+    private suspend fun splitPdfNative(path: String, startPage: Int, endPage: Int): String = withContext(Dispatchers.IO) {
+        val inputFile = File(path)
+        val outputFile = File(context.cacheDir, "split_pdf_${System.currentTimeMillis()}.pdf")
+
+        PDDocument.load(inputFile).use { document ->
+            val totalPages = document.numberOfPages
+            if (startPage < 1 || endPage > totalPages || startPage > endPage) {
+                throw Exception("Invalid page range: $startPage-$endPage for PDF with $totalPages pages.")
+            }
+            val splitDoc = PDDocument()
+            for (i in (startPage - 1)..(endPage - 1)) {
+                splitDoc.addPage(document.getPage(i))
+            }
+            splitDoc.save(outputFile)
+            splitDoc.close()
+        }
+        return@withContext outputFile.absolutePath
+    }
+
+    private suspend fun reorderPdfNative(path: String): List<String> = withContext(Dispatchers.IO) {
+        val inputFile = File(path)
+        val imagePaths = mutableListOf<String>()
+        PDDocument.load(inputFile).use { document ->
+            val renderer = com.tom_roush.pdfbox.rendering.PDFRenderer(document)
+            val pageCount = document.numberOfPages
+            val jobs = (0 until pageCount).map { i ->
+                async(Dispatchers.Default) {
+                    val bitmap = renderer.renderImageWithDPI(i, 120f, com.tom_roush.pdfbox.rendering.ImageType.RGB) // 120 DPI for speed, RGB image type
+                    val imageFile = File(context.cacheDir, "${i + 1}.png")
+                    FileOutputStream(imageFile).use { out ->
+                        bitmap.compress(Bitmap.CompressFormat.PNG, 90, out)
+                    }
+                    bitmap.recycle()
+                    Pair(i, imageFile.absolutePath)
+                }
+            }
+            // Await all jobs and sort by page index to preserve order
+            imagePaths.addAll(jobs.awaitAll().sortedBy { it.first }.map { it.second })
+        }
+        return@withContext imagePaths
+    }
 
 
 }

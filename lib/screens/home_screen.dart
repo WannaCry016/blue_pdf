@@ -15,6 +15,8 @@ import 'package:file_picker/file_picker.dart';
 import 'save_pdf.dart';
 import 'package:blue_pdf/services/image_to_pdf.dart';
 import 'package:blue_pdf/services/merge_pdf.dart';
+import 'package:blue_pdf/services/split_pdf.dart';
+import 'package:blue_pdf/services/reorder_pdf.dart';
 import 'package:blue_pdf/state_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -43,6 +45,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       'Image to PDF': imageToPdfFilesProvider,
       'Encrypt PDF': encryptPdfFilesProvider,
       'Unlock PDF': unlockPdfFilesProvider,
+      'Split PDF': mergePdfFilesProvider, // Use mergePdfFilesProvider for single PDF selection
+      'Reorder PDF': reorderPdfFilesProvider,
     };
 
   Future<String?> _promptPassword(BuildContext context, {required String action}) async {
@@ -147,6 +151,59 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           );
           return;
         }
+      } else if (selectedTool == 'Split PDF') {
+        // Prompt for page range
+        final range = await showDialog<Map<String, int>>(
+          context: context,
+          builder: (context) {
+            final startController = TextEditingController();
+            final endController = TextEditingController();
+            return AlertDialog(
+              title: const Text('Split PDF'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: startController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Start Page'),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: endController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'End Page'),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, null),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final start = int.tryParse(startController.text.trim());
+                    final end = int.tryParse(endController.text.trim());
+                    if (start != null && end != null) {
+                      Navigator.pop(context, {'start': start, 'end': end});
+                    }
+                  },
+                  child: const Text('Split'),
+                ),
+              ],
+            );
+          },
+        );
+        if (range == null) {
+          Navigator.pop(context); // Dismiss loading dialog
+          ref.read(isProcessingProvider.notifier).state = false;
+          return;
+        }
+        initialCachePath = await SplitPdfService.splitPdf(filePaths.first, range['start']!, range['end']!);
+      } else if (selectedTool == 'Reorder PDF') {
+        // Use imageToPdfNative to convert reordered images back to PDF
+        initialCachePath = await imageToPdfNative(filePaths);
       }
 
       if (initialCachePath == null) {
@@ -261,6 +318,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             withData: false,
           );
           break;
+        case 'Split PDF':
+          result = await FilePicker.platform.pickFiles(
+            type: FileType.custom,
+            allowedExtensions: ['pdf'],
+            allowMultiple: false,
+            withData: false,
+          );
+          break;
+        case 'Reorder PDF':
+          result = await FilePicker.platform.pickFiles(
+            type: FileType.custom,
+            allowedExtensions: ['pdf'],
+            allowMultiple: false,
+            withData: false,
+          );
+          break;
       }
 
       // ✅ Only show loading dialog AFTER user has picked files
@@ -305,6 +378,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             break;
           case 'Unlock PDF':
             ref.read(unlockPdfFilesProvider.notifier).addFiles(result.files);
+            break;
+          case 'Split PDF':
+            ref.read(mergePdfFilesProvider.notifier).addFiles(result.files);
+            break;
+          case 'Reorder PDF':
+            if (result != null && result.files.isNotEmpty) {
+              // Convert PDF to images and add to provider
+              final imagePaths = await ReorderPdfService.reorderPdf(result.files.first.path!);
+              final imageFiles = imagePaths.map((path) => PlatformFile(
+                name: path.split('/').last,
+                path: path,
+                size: 0,
+              )).toList();
+              ref.read(reorderPdfFilesProvider.notifier).addFiles(imageFiles);
+            }
             break;
         }
       }

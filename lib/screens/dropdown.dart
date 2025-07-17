@@ -39,6 +39,14 @@ class _CustomDropdownState extends State<CustomDropdown> {
       "label": "Unlock PDF",
       "icon": Icons.lock_open_rounded, // 🔓 unlock icon
     },
+    {
+      "label": "Split PDF",
+      "icon": Icons.content_cut_rounded, // ✂️ scissors icon for splitting
+    },
+    {
+      "label": "Reorder PDF",
+      "icon": Icons.reorder_rounded, // 🔄 reorder icon
+    },
   ];
 
 
