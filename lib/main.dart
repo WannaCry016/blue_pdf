@@ -1,9 +1,14 @@
 import 'package:blue_pdf/screens/splash_screen.dart';
+import 'package:blue_pdf/state_providers.dart';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.light);
+
+Future<void> initThemeNotifier() async {
+  themeNotifier.value = await ThemePrefs.loadThemeMode();
+}
 late List<CameraDescription> cameras;
 
 void main() async {

@@ -14,6 +14,17 @@ class AboutPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF101A30) : Colors.grey[100];
+    final cardColor = isDark ? const Color(0xFF1A2236) : Colors.white;
+    final borderColor = isDark ? const Color(0xFF232A3B) : Colors.grey.shade300;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final secondaryTextColor = isDark ? const Color(0xFFB0B8C1) : Colors.grey;
+    final accent = isDark ? const Color(0xFF2979FF) : const Color(0xFF1976D2);
+    final gradientColors = isDark
+        ? [const Color(0xFF2979FF), const Color(0xFF536DFE), const Color(0xFF00B8D4)]
+        : [const Color(0xFF0D47A1), const Color(0xFF1976D2)];
+
     return Scaffold(
       appBar: AppBar(
         iconTheme: const IconThemeData(color: Colors.white),
@@ -27,60 +38,60 @@ class AboutPage extends StatelessWidget {
         elevation: 0,
         backgroundColor: Colors.transparent,
         flexibleSpace: Container(
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: [Color(0xFF0D47A1), Color(0xFF1976D2)],
+              colors: gradientColors,
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
           ),
         ),
       ),
-      backgroundColor: Colors.grey[100],
+      backgroundColor: bgColor,
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _buildProfileCard(),
+          _buildProfileCard(cardColor, textColor, secondaryTextColor, isDark),
           const SizedBox(height: 14),
-          _buildConnectCard(),
+          _buildConnectCard(cardColor, textColor, secondaryTextColor),
           const SizedBox(height: 14),
-          _buildSupportCard(context),
+          _buildSupportCard(context, cardColor, textColor, secondaryTextColor, borderColor),
           const SizedBox(height: 24),
-          _buildAppInfo(),
+          _buildAppInfo(textColor, secondaryTextColor),
         ],
       ),
     );
   }
 
-  Widget _buildProfileCard() {
+  Widget _buildProfileCard(Color cardColor, Color textColor, Color secondaryTextColor, bool isDark) {
     return Card(
       elevation: 3,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      color: Colors.white,
+      color: cardColor,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 16),
         child: Column(
-          children: const [
-            CircleAvatar(
+          children: [
+            const CircleAvatar(
               radius: 42,
               backgroundColor: Color(0xFF1976D2),
               child: Icon(Icons.person, size: 42, color: Colors.white),
             ),
-            SizedBox(height: 14),
+            const SizedBox(height: 14),
             Text(
               "Ayushman Pal",
-              style: TextStyle(fontSize: 19, fontWeight: FontWeight.w600),
+              style: TextStyle(fontSize: 19, fontWeight: FontWeight.w600, color: textColor),
             ),
-            SizedBox(height: 2),
+            const SizedBox(height: 2),
             Text(
               "Indie Developer",
-              style: TextStyle(fontSize: 13.5, color: Colors.grey),
+              style: TextStyle(fontSize: 13.5, color: secondaryTextColor),
             ),
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
             Text(
               "Thanks for using Blue PDF — a fast and simple utility built with 💙 to help you work with your documents offline. No ads, no nonsense.",
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13.5, height: 1.5, color: Colors.black87),
+              style: TextStyle(fontSize: 13.5, height: 1.5, color: isDark ? Colors.white70 : Colors.black87),
             ),
           ],
         ),
@@ -88,19 +99,19 @@ class AboutPage extends StatelessWidget {
     );
   }
 
-  Widget _buildConnectCard() {
+  Widget _buildConnectCard(Color cardColor, Color textColor, Color secondaryTextColor) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      color: Colors.white,
+      color: cardColor,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               "Connect",
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: textColor),
             ),
             const SizedBox(height: 14),
             Row(
@@ -111,18 +122,21 @@ class AboutPage extends StatelessWidget {
                   label: "GitHub",
                   color: Colors.black87,
                   onTap: () => _launchURL("https://github.com/WannaCry016"),
+                  textColor: textColor,
                 ),
                 _buildSocialButton(
                   icon: Icons.business,
                   label: "LinkedIn",
                   color: Color(0xFF0A66C2),
                   onTap: () => _launchURL("https://linkedin.com/in/ayushmanpal"),
+                  textColor: textColor,
                 ),
                 _buildSocialButton(
                   icon: Icons.email,
                   label: "Email",
                   color: Colors.redAccent,
-                  onTap: () => _launchURL("mailto:payushman72@gmail.com"),
+                  onTap: () => _launchURL("mailto:ayushmanpal@proton.me"),
+                  textColor: textColor,
                 ),
               ],
             ),
@@ -137,6 +151,7 @@ class AboutPage extends StatelessWidget {
     required String label,
     required Color color,
     required VoidCallback onTap,
+    required Color textColor,
   }) {
     return InkWell(
       onTap: onTap,
@@ -149,29 +164,29 @@ class AboutPage extends StatelessWidget {
             child: Icon(icon, color: color, size: 24),
           ),
           const SizedBox(height: 6),
-          Text(label, style: const TextStyle(fontSize: 12.5)),
+          Text(label, style: TextStyle(fontSize: 12.5, color: textColor)),
         ],
       ),
     );
   }
 
-  Widget _buildSupportCard(BuildContext context) {
+  Widget _buildSupportCard(BuildContext context, Color cardColor, Color textColor, Color secondaryTextColor, Color borderColor) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      color: Colors.white,
+      color: cardColor,
       child: Column(
         children: [
           ListTile(
-            leading: const Icon(Icons.bug_report_outlined, color: Colors.blueGrey),
-            title: const Text("Bug / Feature Request", style: TextStyle(fontSize: 14.5)),
+            leading: Icon(Icons.bug_report_outlined, color: Colors.blueGrey.shade300),
+            title: Text("Bug / Feature Request", style: TextStyle(fontSize: 14.5, color: textColor)),
             trailing: const Icon(Icons.arrow_forward_ios, size: 14),
-            onTap: () => _launchURL("mailto:payushman72@gmail.com?subject=Blue%20PDF%20Feedback"),
+            onTap: () => _launchURL("mailto:ayushmanpal@proton.me?subject=Blue%20PDF%20Feedback"),
           ),
-          const Divider(height: 1, indent: 16, endIndent: 16),
+          Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
           ListTile(
-            leading: const Icon(Icons.privacy_tip_outlined, color: Colors.blueGrey),
-            title: const Text("Privacy Policy", style: TextStyle(fontSize: 14.5)),
+            leading: Icon(Icons.privacy_tip_outlined, color: Colors.blueGrey.shade300),
+            title: Text("Privacy Policy", style: TextStyle(fontSize: 14.5, color: textColor)),
             trailing: const Icon(Icons.arrow_forward_ios, size: 14),
             onTap: () {
               Navigator.push(
@@ -180,30 +195,29 @@ class AboutPage extends StatelessWidget {
               );
             },
           ),
-          const Divider(height: 1, indent: 16, endIndent: 16),
+          Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
           ListTile(
             leading: const Icon(Icons.star_rate_outlined, color: Colors.amber),
-            title: const Text("Rate Us", style: TextStyle(fontSize: 14.5)),
+            title: Text("Rate Us", style: TextStyle(fontSize: 14.5, color: textColor)),
             trailing: const Icon(Icons.arrow_forward_ios, size: 14),
-            onTap: () => _launchURL("https://play.google.com/store/apps/details?id=com.bluepdf.app"), // replace with your package
+            onTap: () => _launchURL("https://play.google.com/store/apps/details?id=com.bluepdf.app"),
           ),
         ],
       ),
     );
   }
 
-
-  Widget _buildAppInfo() {
+  Widget _buildAppInfo(Color textColor, Color secondaryTextColor) {
     return Column(
       children: [
-        const Text("Blue PDF v1.0.0", style: TextStyle(color: Colors.grey, fontSize: 13)),
+        Text("Blue PDF v1.0.0", style: TextStyle(color: secondaryTextColor, fontSize: 13)),
         const SizedBox(height: 8),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Text("Built with ", style: TextStyle(color: Colors.grey, fontSize: 13)),
+            Text("Built with ", style: TextStyle(color: secondaryTextColor, fontSize: 13)),
             const Icon(Icons.favorite, color: Colors.red, size: 14),
-            const Text(" in Flutter", style: TextStyle(color: Colors.grey, fontSize: 13)),
+            Text(" in Flutter", style: TextStyle(color: secondaryTextColor, fontSize: 13)),
             const SizedBox(width: 4),
             Image.asset('assets/flutter_logo.png', height: 18),
           ],

@@ -8,6 +8,16 @@ import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:blue_pdf/state_providers.dart';
 
+// Add dark theme color palette
+const Color kDarkBg = Color(0xFF101A30);         // Deep navy
+const Color kDarkCard = Color(0xFF1A2236);       // Soft card
+const Color kDarkBorder = Color(0xFF232A3B);
+const Color kDarkPrimary = Color(0xFF2979FF);    // Vibrant blue
+const Color kDarkAccent = Color(0xFF536DFE);     // Electric indigo
+const Color kDarkTeal = Color(0xFF00B8D4);       // Teal accent
+const Color kDarkText = Colors.white;
+const Color kDarkSecondaryText = Color(0xFFB0B8C1);
+
 class SavePdfOverlay extends ConsumerStatefulWidget {
   final Uint8List pdfBytes;
 
@@ -18,7 +28,9 @@ class SavePdfOverlay extends ConsumerStatefulWidget {
 }
 
 class _SavePdfOverlayState extends ConsumerState<SavePdfOverlay> {
-  late TextEditingController _filenameController;
+  late TextEditingController _filenameController = TextEditingController();
+  late TextEditingController _passwordController = TextEditingController();
+  bool _encryptChecked = false;
 
   @override
   void initState() {
@@ -108,9 +120,23 @@ class _SavePdfOverlayState extends ConsumerState<SavePdfOverlay> {
     return file.path;
   }
 
-  @override
+ @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final selectedTool = ref.watch(selectedToolProvider);
+    final bool showEncryptOption = selectedTool != "Encrypt PDF";
+
+    bool _encryptChecked = false;
+    final TextEditingController _passwordController = TextEditingController();
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark ? kDarkCard : Colors.white;
+    final borderColor = isDark ? kDarkBorder : Colors.grey.shade300;
+    final textColor = isDark ? kDarkText : Colors.black87;
+    final secondaryTextColor = isDark ? kDarkSecondaryText : Colors.grey.shade600;
+    final buttonGradient = isDark
+        ? [kDarkPrimary, kDarkAccent, kDarkTeal]
+        : [Color(0xFF0D47A1), Color(0xFF1976D2)];
 
     return Padding(
       padding: EdgeInsets.only(bottom: bottomInset),
@@ -118,54 +144,140 @@ class _SavePdfOverlayState extends ConsumerState<SavePdfOverlay> {
         margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: cardColor,
           borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: borderColor, width: 1.2),
+          boxShadow: [
+            BoxShadow(
+              color: isDark ? kDarkPrimary.withOpacity(0.13) : Colors.black12,
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              "📥 Save PDF",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _filenameController,
-              decoration: const InputDecoration(
-                labelText: "File Name",
-                border: OutlineInputBorder(),
-                isDense: true,
-              ),
-            ),
-            const SizedBox(height: 24),
-            Row(
+        child: StatefulBuilder(
+          builder: (context, setState) {
+            return Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(context, false),
-                    child: const Text("Cancel"),
-                  ),
+                Text(
+                  "📥 Save PDF",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: textColor),
+                  textAlign: TextAlign.center,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _saveFile,
-                    icon: const Icon(Icons.save),
-                    label: const Text("Save"),
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(44),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _filenameController,
+                  style: TextStyle(color: textColor),
+                  decoration: InputDecoration(
+                    labelText: "File Name",
+                    labelStyle: TextStyle(color: secondaryTextColor),
+                    border: const OutlineInputBorder(),
+                    isDense: true,
+                    enabledBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: borderColor),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: isDark ? kDarkAccent : Color(0xFF1976D2)),
                     ),
                   ),
                 ),
+
+                // ⬇️ Only show if selectedTool is NOT "Encrypt PDF"
+                if (showEncryptOption) ...[
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Checkbox(
+                        value: _encryptChecked,
+                        onChanged: (val) {
+                          setState(() => _encryptChecked = val ?? false);
+                        },
+                        activeColor: isDark ? kDarkAccent : null,
+                      ),
+                      Text(
+                        "Encrypt the PDF",
+                        style: TextStyle(fontSize: 15, color: textColor),
+                      ),
+                    ],
+                  ),
+                  if (_encryptChecked) ...[
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _passwordController,
+                      obscureText: true,
+                      style: TextStyle(color: textColor),
+                      decoration: InputDecoration(
+                        labelText: "Encryption Password",
+                        labelStyle: TextStyle(color: secondaryTextColor),
+                        border: const OutlineInputBorder(),
+                        isDense: true,
+                        enabledBorder: OutlineInputBorder(
+                          borderSide: BorderSide(color: borderColor),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderSide: BorderSide(color: isDark ? kDarkAccent : Color(0xFF1976D2)),
+                        ),
+                      ),
+                    ),
+                  ]
+                ],
+
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: isDark ? kDarkAccent : Color(0xFF1976D2),
+                          side: BorderSide(color: isDark ? kDarkAccent : Color(0xFF1976D2)),
+                        ),
+                        child: Text("Cancel", style: TextStyle(color: isDark ? kDarkAccent : Color(0xFF1976D2))),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: buttonGradient,
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(10),
+                          boxShadow: [
+                            BoxShadow(
+                              color: isDark ? kDarkTeal.withOpacity(0.18) : Colors.blue.withOpacity(0.18),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: ElevatedButton.icon(
+                          onPressed: _saveFile,
+                          icon: const Icon(Icons.save, color: Colors.white),
+                          label: const Text("Save", style: TextStyle(color: Colors.white)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            shadowColor: Colors.transparent,
+                            minimumSize: const Size.fromHeight(44),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            elevation: 0,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ],
-            ),
-          ],
+            );
+          }, // builder
         ),
       ),
     );
   }
+
 }

@@ -35,10 +35,30 @@ class _CameraCaptureScreenState extends ConsumerState<CameraCaptureScreen> {
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text("✅ Image added and saved"),
-            duration: const Duration(seconds: 1),
+            content: Row(
+              children: const [
+                Icon(Icons.check_circle_outline, color: Colors.white, size: 20),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    "Image added and saved successfully",
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            duration: const Duration(milliseconds: 1500),
             behavior: SnackBarBehavior.floating,
-            backgroundColor: Colors.green[600],
+            backgroundColor: Color(0xFF1E1E2E), // Elegant deep navy/gray
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            elevation: 4,
           ),
         );
       });

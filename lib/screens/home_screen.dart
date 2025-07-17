@@ -1,6 +1,7 @@
 
 import 'dart:io';
 import 'dart:ui';
+import 'package:blue_pdf/main.dart';
 import 'package:blue_pdf/services/pdf_encryptor.dart';
 import 'package:blue_pdf/services/unlock_pdf.dart';
 import 'package:flutter/foundation.dart';
@@ -16,6 +17,16 @@ import 'package:blue_pdf/services/image_to_pdf.dart';
 import 'package:blue_pdf/services/merge_pdf.dart';
 import 'package:blue_pdf/state_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+// Update dark color palette for more vibrant, attractive look
+const Color kDarkBg = Color(0xFF101A30);         // Deep navy
+const Color kDarkCard = Color(0xFF1A2236);       // Soft card
+const Color kDarkBorder = Color(0xFF232A3B);
+const Color kDarkPrimary = Color(0xFF2979FF);    // Vibrant blue
+const Color kDarkAccent = Color(0xFF536DFE);     // Electric indigo
+const Color kDarkTeal = Color(0xFF00B8D4);       // Teal accent
+const Color kDarkText = Colors.white;
+const Color kDarkSecondaryText = Color(0xFFB0B8C1);
 
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -330,12 +341,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // final selectedFiles = ref.watch(fileProviders[selectedTool]!);
 
     final isLoading = ref.watch(isFileLoadingProvider);
-    var recentFiles = ref.watch(recentFilesProvider);
     var isProcessing = ref.watch(isProcessingProvider);
     
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Colors.black87;
-    final bgColor = isDark ? const Color(0xFF121212) :const Color(0xFFECEFF1);
+    final textColor = isDark ? kDarkText : Colors.black87;
+    final secondaryTextColor = isDark ? kDarkSecondaryText : Colors.grey.shade600;
+    final bgColor = isDark ? kDarkBg : const Color(0xFFECEFF1);
+    final cardColor = isDark ? kDarkCard : Colors.white;
+    final borderColor = isDark ? kDarkBorder : Colors.grey.shade300;
+    final gradientColors = isDark
+        ? [kDarkPrimary, kDarkAccent, kDarkTeal]
+        : [Color(0xFF0D47A1), Color(0xFF1976D2)];
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -344,9 +360,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         toolbarHeight: 50,
         backgroundColor: Colors.transparent,
         flexibleSpace: Container(
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: [Color(0xFF0D47A1), Color(0xFF1976D2)],
+              colors: gradientColors,
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
@@ -377,6 +393,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 MaterialPageRoute(builder: (_) => AboutPage()),
               );
             },
+          ),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            child: IconButton(
+              key: ValueKey(themeNotifier.value),
+              tooltip: "Toggle Theme",
+              icon: Icon(
+                themeNotifier.value == ThemeMode.dark
+                    ? Icons.dark_mode
+                    : Icons.light_mode,
+                color: Colors.white,
+                size: 24,
+              ),
+              onPressed: () async {
+                final newTheme = themeNotifier.value == ThemeMode.dark
+                    ? ThemeMode.light
+                    : ThemeMode.dark;
+                themeNotifier.value = newTheme;
+                await ThemePrefs.saveThemeMode(newTheme);
+              },
+            ),
           ),
         ],
       ),
@@ -415,24 +452,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 26),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [
-                      Color.fromARGB(255, 11, 55, 106), // deeper blue
-                      Color(0xFF42A5F5), // lighter blue
-                    ],
+                    colors: gradientColors,
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.blue.withOpacity(0.35),
-                      blurRadius: 12,
-                      spreadRadius: 1,
-                      offset: const Offset(0, 5),
+                      color: isDark ? kDarkTeal.withOpacity(0.25) : Colors.blue.withOpacity(0.35),
+                      blurRadius: 16,
+                      spreadRadius: 2,
+                      offset: const Offset(0, 6),
                     ),
                   ],
                   border: Border.all(
-                    color: Colors.white.withOpacity(0.1),
+                    color: Colors.white.withOpacity(isDark ? 0.08 : 0.1),
                     width: 1,
                   ),
                 ),
@@ -466,7 +500,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: Colors.grey.shade700,
+                      color: isDark ? kDarkSecondaryText : Colors.grey.shade700,
                       letterSpacing: 0.3,
                     ),
                   ),
@@ -476,7 +510,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     height: 22,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF1976D2)), // deep blue
+                      valueColor: AlwaysStoppedAnimation<Color>(isDark ? kDarkAccent : Color(0xFF1976D2)), // deep blue
                     ),
                   ),
                 ],
@@ -489,7 +523,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
-                color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                color: secondaryTextColor,
                 letterSpacing: 0.3,
               ),
               textAlign: TextAlign.center,
@@ -508,9 +542,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   const SizedBox(height: 5),
                   Container(
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: cardColor,
                       border: Border.all(
-                        color: isDark ? Colors.white24 : Colors.grey.shade300,
+                        color: borderColor,
                         width: 1.2,
                       ),
                       borderRadius: BorderRadius.circular(12),
@@ -539,10 +573,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
                           if (file.extension == 'pdf') {
                             iconData = Icons.picture_as_pdf_rounded;
-                            iconColor = Colors.blueAccent;
+                            iconColor = isDark ? kDarkAccent : Colors.blueAccent;
                           } else {
                             iconData = Icons.image_outlined;
-                            iconColor = Colors.teal;
+                            iconColor = isDark ? Colors.tealAccent : Colors.teal;
                           }
 
                           return ListTile(
@@ -592,15 +626,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       width: isProcessing ? 160 : 140,
                       height: 46,
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF0D47A1), Color(0xFF1976D2)],
+                        gradient: LinearGradient(
+                          colors: gradientColors,
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
                         borderRadius: BorderRadius.circular(30),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.blueAccent.withOpacity(0.3),
+                            color: (isDark ? kDarkAccent : Colors.blueAccent).withOpacity(0.3),
                             blurRadius: 10,
                             offset: const Offset(0, 4),
                           ),
@@ -662,12 +696,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
                         padding: const EdgeInsets.all(40),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: cardColor,
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.blueGrey.shade100),
+                          border: Border.all(color: borderColor),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black12,
+                              color: isDark ? Colors.black26 : Colors.black12,
                               blurRadius: 8,
                               offset: Offset(0, 4),
                             ),
