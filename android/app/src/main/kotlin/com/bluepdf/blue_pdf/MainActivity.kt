@@ -89,28 +89,6 @@ class MainActivity : FlutterActivity() {
                     }
                 }
 
-                "unlockPdf" -> {
-                    val path = call.argument<String>("path")
-                    val password = call.argument<String>("password")
-
-                    if (path != null && password != null) {
-                        CoroutineScope(Dispatchers.IO).launch {
-                            try {
-                                val unlockedPath = unlockPdfNative(path, password)
-                                withContext(Dispatchers.Main) {
-                                    result.success(unlockedPath)
-                                }
-                            } catch (e: Exception) {
-                                withContext(Dispatchers.Main) {
-                                    result.error("UNLOCK_ERROR", "Failed to unlock PDF: ${e.message}", null)
-                                }
-                            }
-                        }
-                    } else {
-                        result.error("MISSING_ARGS", "Missing path or password", null)
-                    }
-                }
-
                 "splitPdf" -> {
                     val path = call.argument<String>("path")
                     val startPage = call.argument<Int>("startPage")
@@ -248,26 +226,6 @@ class MainActivity : FlutterActivity() {
 
             document.protect(protectionPolicy)
             document.save(outputFile)
-        }
-
-        return@withContext outputFile.absolutePath
-    }
-
-    private suspend fun unlockPdfNative(path: String, password: String): String = withContext(Dispatchers.IO) {
-        val inputFile = File(path)
-        val outputFile = File(context.cacheDir, "unlocked_pdf_${System.currentTimeMillis()}.pdf")
-
-        try {
-            PDDocument.load(inputFile, password).use { document ->
-                if (!document.isEncrypted) {
-                    throw Exception("PDF is not encrypted.")
-                }
-
-                document.setAllSecurityToBeRemoved(true)
-                document.save(outputFile)
-            }
-        } catch (e: InvalidPasswordException) {
-            throw Exception("Incorrect password.")
         }
 
         return@withContext outputFile.absolutePath

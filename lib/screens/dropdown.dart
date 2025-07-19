@@ -81,6 +81,9 @@ class _CustomDropdownState extends State<CustomDropdown> {
             child: Material(
               color: Colors.transparent,
               child: Container(
+                constraints: BoxConstraints(
+                  maxHeight: 200, // Adjust height to fit 4 items or based on screen
+                ),
                 decoration: BoxDecoration(
                   color: widget.isDark ? Colors.grey[900] : Colors.white,
                   borderRadius: BorderRadius.circular(10),

@@ -109,17 +109,6 @@ class _GridViewOverlayState extends ConsumerState<GridViewOverlay>
     setState(() {
       _draggedIndex = index;
     });
-    // Add haptic feedback for drag start
-    HapticFeedback.mediumImpact();
-  }
-
-  void _onLongPressStart(int index) {
-    // Add haptic feedback for long press start
-    HapticFeedback.lightImpact();
-  }
-
-  void _onLongPressEnd() {
-    // Long press ended without starting drag
   }
 
   void _onDragEnd() {
@@ -133,8 +122,6 @@ class _GridViewOverlayState extends ConsumerState<GridViewOverlay>
     final oldIndex = _draggedIndex;
     if (oldIndex != null && oldIndex != newIndex) {
       widget.onReorder(oldIndex, newIndex);
-      // Add haptic feedback for successful reorder
-      HapticFeedback.selectionClick();
     }
     setState(() {
       _draggedIndex = null;
@@ -298,48 +285,38 @@ class _GridViewOverlayState extends ConsumerState<GridViewOverlay>
       onAcceptWithDetails: (details) => _onDragAccepted(index),
       onLeave: (data) => _onDragTargetUpdate(null),
       builder: (context, candidateData, rejectedData) {
-        return GestureDetector(
-          onLongPressStart: (_) => _onLongPressStart(index),
-          onLongPressEnd: (_) => _onLongPressEnd(),
-          onLongPress: () {
-            // Start drag after long press
-            _onDragStarted(index);
-          },
-          child: isDragging 
-            ? Draggable<int>(
-                data: index,
-                onDragStarted: () => _onDragStarted(index),
-                onDragEnd: (details) => _onDragEnd(),
-                feedback: Material(
-                  elevation: 8,
-                  borderRadius: BorderRadius.circular(16),
-                  child: Container(
-                    width: 120,
-                    height: 160,
-                    decoration: BoxDecoration(
-                      color: widget.cardColor,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: widget.borderColor),
-                    ),
-                    child: _buildFileCard(file, index, isPdf, isDragging: true),
-                  ),
-                ),
-                childWhenDragging: Container(
-                  decoration: BoxDecoration(
-                    color: widget.isDark ? kDarkCard.withOpacity(0.3) : Colors.grey.shade50.withOpacity(0.3),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: widget.borderColor.withOpacity(0.3),
-                      width: 1,
-                    ),
-                  ),
-                  child: const Center(
-                    child: Icon(Icons.drag_handle, color: Colors.grey),
-                  ),
-                ),
-                child: _buildFileCard(file, index, isPdf, isDragging: isDragging, isDragTarget: isDragTarget),
-              )
-            : _buildFileCard(file, index, isPdf, isDragging: isDragging, isDragTarget: isDragTarget),
+        return Draggable<int>(
+          data: index,
+          onDragStarted: () => _onDragStarted(index),
+          onDragEnd: (details) => _onDragEnd(),
+          feedback: Material(
+            elevation: 8,
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              width: 120,
+              height: 160,
+              decoration: BoxDecoration(
+                color: widget.cardColor,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: widget.borderColor),
+              ),
+              child: _buildFileCard(file, index, isPdf, isDragging: true),
+            ),
+          ),
+          childWhenDragging: Container(
+            decoration: BoxDecoration(
+              color: widget.isDark ? kDarkCard.withOpacity(0.3) : Colors.grey.shade50.withOpacity(0.3),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: widget.borderColor.withOpacity(0.3),
+                width: 1,
+              ),
+            ),
+            child: const Center(
+              child: Icon(Icons.drag_handle, color: Colors.grey),
+            ),
+          ),
+          child: _buildFileCard(file, index, isPdf, isDragging: isDragging, isDragTarget: isDragTarget),
         );
       },
     );
@@ -396,15 +373,14 @@ class _GridViewOverlayState extends ConsumerState<GridViewOverlay>
                   Positioned(
                     top: 8,
                     left: 8,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
+                    child: Container(
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
                         color: Colors.black.withOpacity(0.6),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Icon(
-                        Icons.touch_app,
+                        Icons.drag_handle,
                         color: Colors.white,
                         size: 16,
                       ),

@@ -1,5 +1,4 @@
 import 'package:blue_pdf/screens/home_screen.dart';
-import 'package:blue_pdf/screens/onboarding.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -15,13 +14,11 @@ class _SplashScreenState extends State<SplashScreen> {
   void initState() {
     super.initState();
     Future.delayed(const Duration(seconds: 2), () async {
-      final prefs = await SharedPreferences.getInstance();
-      final seenOnboarding = prefs.getBool('onboarding_complete') ?? false;
       if (mounted) {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (_) => seenOnboarding ? const HomeScreen() : const OnboardingScreen(),
+            builder: (_) => const HomeScreen(),
           ),
         );
       }

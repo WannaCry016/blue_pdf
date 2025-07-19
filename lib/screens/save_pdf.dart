@@ -123,11 +123,6 @@ class _SavePdfOverlayState extends ConsumerState<SavePdfOverlay> {
  @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-    final selectedTool = ref.watch(selectedToolProvider);
-    final bool showEncryptOption = selectedTool != "Encrypt PDF";
-
-    bool _encryptChecked = false;
-    final TextEditingController _passwordController = TextEditingController();
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardColor = isDark ? kDarkCard : Colors.white;
@@ -182,46 +177,6 @@ class _SavePdfOverlayState extends ConsumerState<SavePdfOverlay> {
                     ),
                   ),
                 ),
-
-                // ⬇️ Only show if selectedTool is NOT "Encrypt PDF"
-                if (showEncryptOption) ...[
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Checkbox(
-                        value: _encryptChecked,
-                        onChanged: (val) {
-                          setState(() => _encryptChecked = val ?? false);
-                        },
-                        activeColor: isDark ? kDarkAccent : null,
-                      ),
-                      Text(
-                        "Encrypt the PDF",
-                        style: TextStyle(fontSize: 15, color: textColor),
-                      ),
-                    ],
-                  ),
-                  if (_encryptChecked) ...[
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _passwordController,
-                      obscureText: true,
-                      style: TextStyle(color: textColor),
-                      decoration: InputDecoration(
-                        labelText: "Encryption Password",
-                        labelStyle: TextStyle(color: secondaryTextColor),
-                        border: const OutlineInputBorder(),
-                        isDense: true,
-                        enabledBorder: OutlineInputBorder(
-                          borderSide: BorderSide(color: borderColor),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderSide: BorderSide(color: isDark ? kDarkAccent : Color(0xFF1976D2)),
-                        ),
-                      ),
-                    ),
-                  ]
-                ],
 
                 const SizedBox(height: 24),
                 Row(

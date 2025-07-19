@@ -3,7 +3,6 @@ import 'dart:io';
 import 'dart:ui';
 import 'package:blue_pdf/main.dart';
 import 'package:blue_pdf/services/pdf_encryptor.dart';
-import 'package:blue_pdf/services/unlock_pdf.dart';
 import 'package:flutter/foundation.dart';
 import 'package:open_filex/open_filex.dart';
 import 'camera.dart';
@@ -130,27 +129,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         if (password == null || password.isEmpty) {
           throw Exception("Encryption password not provided.");
         }
-        initialCachePath = await encryptPdf(filePaths.first, password);
-      } else if (selectedTool == 'Unlock PDF') {
-        final password = await _promptPassword(context, action: "Unlock");
-
-        if (password == null || password.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("🔑 Please enter a password to unlock the PDF.")),
-          );
-          return;
-        }
-
-        try {
-          initialCachePath = await unlockPdf(filePaths.first, password);
-        } catch (e) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("❌ Incorrect password. Please try again."),
-            ),
-          );
-          return;
-        }
+        initialCachePath = await encryptPdf(filePaths.first, password); 
       } else if (selectedTool == 'Split PDF') {
         // Prompt for page range
         final range = await showDialog<Map<String, int>>(
