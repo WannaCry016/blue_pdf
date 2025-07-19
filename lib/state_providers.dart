@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+enum ViewMode { list, grid }
 
 var selectedToolProvider = StateProvider<String?>((ref) => null);
 var recentFilesProvider = StateProvider<List<String>>((ref) => []);
@@ -12,6 +13,7 @@ final isProcessingProvider = StateProvider<bool>((ref) => false);
 final savePathProvider = StateProvider<String?>((ref) => null);
 final mergedPdfBytesProvider = StateProvider<Uint8List?>((ref) => null);
 final cachePathProvider = StateProvider<String?>((ref) => null);
+final viewModeProvider = StateProvider<ViewMode>((ref) => ViewMode.list);
 
 class ThemePrefs {
   static const _themeKey = 'theme_mode';
@@ -50,10 +52,6 @@ final mergePdfFilesProvider =
         (ref) => SelectedFilesNotifier());
 
 final encryptPdfFilesProvider =
-    StateNotifierProvider<SelectedFilesNotifier, List<PlatformFile>>(
-        (ref) => SelectedFilesNotifier());
-
-final unlockPdfFilesProvider =
     StateNotifierProvider<SelectedFilesNotifier, List<PlatformFile>>(
         (ref) => SelectedFilesNotifier());
 

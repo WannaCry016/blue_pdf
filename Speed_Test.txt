@@ -1,0 +1,24 @@
+Speed Test 
+
+# Image To PDF - 30 Images
+
+BLUE PDF - 6.24 sec
+Merge PDF - 8.99 sec  -  Lighest and Top speed app on playstore
+
+10 Images
+Merge PDF - 4.02 sec
+BLUE PDF - 3.82 sec
+
+# Merge PDF - 5 PDF
+
+BLUE PDF - 2.23 sec
+Merge PDF - 1.74 sec
+
+10 PDF
+BLUE PDF - 2.52 sec
+Merge PDF - 1.39 sec
+
+# Rorder PDF 
+
+BLUE PDF - 
+Merge PDF - 

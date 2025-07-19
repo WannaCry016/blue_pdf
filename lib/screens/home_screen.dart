@@ -19,6 +19,7 @@ import 'package:blue_pdf/services/split_pdf.dart';
 import 'package:blue_pdf/services/reorder_pdf.dart';
 import 'package:blue_pdf/state_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'grid_view_overlay.dart';
 
 // Update dark color palette for more vibrant, attractive look
 const Color kDarkBg = Color(0xFF101A30);         // Deep navy
@@ -44,7 +45,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       'Merge PDF': mergePdfFilesProvider,
       'Image to PDF': imageToPdfFilesProvider,
       'Encrypt PDF': encryptPdfFilesProvider,
-      'Unlock PDF': unlockPdfFilesProvider,
       'Split PDF': mergePdfFilesProvider, // Use mergePdfFilesProvider for single PDF selection
       'Reorder PDF': reorderPdfFilesProvider,
     };
@@ -310,14 +310,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           );
           break;
 
-        case 'Unlock PDF':
-          result = await FilePicker.platform.pickFiles(
-            type: FileType.custom,
-            allowedExtensions: ['pdf'],
-            allowMultiple: false,
-            withData: false,
-          );
-          break;
         case 'Split PDF':
           result = await FilePicker.platform.pickFiles(
             type: FileType.custom,
@@ -326,6 +318,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             withData: false,
           );
           break;
+          
         case 'Reorder PDF':
           result = await FilePicker.platform.pickFiles(
             type: FileType.custom,
@@ -376,22 +369,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           case 'Encrypt PDF':
             ref.read(encryptPdfFilesProvider.notifier).addFiles(result.files);
             break;
-          case 'Unlock PDF':
-            ref.read(unlockPdfFilesProvider.notifier).addFiles(result.files);
-            break;
           case 'Split PDF':
             ref.read(mergePdfFilesProvider.notifier).addFiles(result.files);
             break;
           case 'Reorder PDF':
             if (result != null && result.files.isNotEmpty) {
-              // Convert PDF to images and add to provider
-              final imagePaths = await ReorderPdfService.reorderPdf(result.files.first.path!);
-              final imageFiles = imagePaths.map((path) => PlatformFile(
-                name: path.split('/').last,
-                path: path,
-                size: 0,
-              )).toList();
-              ref.read(reorderPdfFilesProvider.notifier).addFiles(imageFiles);
+              try {
+                // Convert PDF to images and add to provider
+                final imagePaths = await ReorderPdfService.reorderPdf(result.files.first.path!);
+                final imageFiles = imagePaths.map((path) => PlatformFile(
+                  name: path.split('/').last,
+                  path: path,
+                  size: 0,
+                )).toList();
+                ref.read(reorderPdfFilesProvider.notifier).addFiles(imageFiles);
+              } catch (e) {
+                debugPrint("Reorder PDF Error: $e");
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text("Failed to process PDF for reordering: ${e.toString()}"),
+                    backgroundColor: Colors.red,
+                    duration: const Duration(seconds: 3),
+                  ),
+                );
+              }
             }
             break;
         }
@@ -416,6 +417,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget build(BuildContext context) {
 
     final selectedTool = ref.watch(selectedToolProvider);
+    final viewMode = ref.watch(viewModeProvider);
 
     // Map tool name to its respective provider
 
@@ -505,208 +507,276 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 32),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            GestureDetector(
-              onTap: () {
-                if (selectedTool == null) {
-                  showDialog(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      title: const Text("Tool Not Selected"),
-                      content: const Text(
-                        "Please select a tool before choosing a file.",
-                        style: TextStyle(fontSize: 15),
+      body: Stack(
+        children: [
+          // Main content
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 32),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                GestureDetector(
+                  onTap: () {
+                    if (selectedTool == null) {
+                      showDialog(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          title: const Text("Tool Not Selected"),
+                          content: const Text(
+                            "Please select a tool before choosing a file.",
+                            style: TextStyle(fontSize: 15),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: Text("OK", style: TextStyle(color: Color(0xFFFF6F00))), // Bright Orange
+                            )
+                          ],
+                        ),
+                      );
+                      return;
+                    }
+                    _onToolSelect(); 
+                  },
+                  child: Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(right: 10),
+                    padding: const EdgeInsets.symmetric(vertical: 26),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: gradientColors,
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
                       ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context),
-                          child: Text("OK", style: TextStyle(color: Color(0xFFFF6F00))), // Bright Orange
-                        )
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: [
+                        BoxShadow(
+                          color: isDark ? kDarkTeal.withOpacity(0.25) : Colors.blue.withOpacity(0.35),
+                          blurRadius: 16,
+                          spreadRadius: 2,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                      border: Border.all(
+                        color: Colors.white.withOpacity(isDark ? 0.08 : 0.1),
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: const [
+                        Icon(Icons.upload_file_rounded, color: Colors.white, size: 26),
+                        SizedBox(width: 10),
+                        Text(
+                          "Select File",
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
                       ],
                     ),
-                  );
-                  return;
-                }
-                _onToolSelect(); 
-              },
-              child: Container(
-                width: double.infinity,
-                margin: const EdgeInsets.only(right: 10),
-                padding: const EdgeInsets.symmetric(vertical: 26),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: gradientColors,
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(14),
-                  boxShadow: [
-                    BoxShadow(
-                      color: isDark ? kDarkTeal.withOpacity(0.25) : Colors.blue.withOpacity(0.35),
-                      blurRadius: 16,
-                      spreadRadius: 2,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
-                  border: Border.all(
-                    color: Colors.white.withOpacity(isDark ? 0.08 : 0.1),
-                    width: 1,
                   ),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: const [
-                    Icon(Icons.upload_file_rounded, color: Colors.white, size: 26),
-                    SizedBox(width: 10),
-                    Text(
-                      "Select File",
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                        letterSpacing: 0.8,
-                      ),
+
+                if (isLoading)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 24),
+                    child: Column(
+                      children: [
+                        Text(
+                          "Selected Files",
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? kDarkSecondaryText : Colors.grey.shade700,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(isDark ? kDarkAccent : Color(0xFF1976D2)), // deep blue
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              ),
+                  )
 
-            ),
-
-          if (isLoading)
-            Padding(
-              padding: const EdgeInsets.only(top: 24),
-              child: Column(
-                children: [
+                else if (selectedFiles.isEmpty)
                   Text(
-                    "Selected Files",
+                    "Upload a file to begin. Supported: PDF, JPG, PNG.",
                     style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: isDark ? kDarkSecondaryText : Colors.grey.shade700,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: secondaryTextColor,
                       letterSpacing: 0.3,
                     ),
-                  ),
-                  const SizedBox(height: 14),
-                  SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(isDark ? kDarkAccent : Color(0xFF1976D2)), // deep blue
-                    ),
-                  ),
-                ],
-              ),
-            )
+                    textAlign: TextAlign.center,
+                  )
 
-          else if (selectedFiles.isEmpty)
-            Text(
-              "Upload a file to begin. Supported: PDF, JPG, PNG.",
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: secondaryTextColor,
-                letterSpacing: 0.3,
-              ),
-              textAlign: TextAlign.center,
-            )
-
-          else
-            Padding(
-              padding: const EdgeInsets.only(top: 24.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    "Selected Files",
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 5),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: cardColor,
-                      border: Border.all(
-                        color: borderColor,
-                        width: 1.2,
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    constraints: const BoxConstraints(
-                      maxHeight: 210,
-                    ),
-                    child: Scrollbar(
-                      thumbVisibility: true,
-                      radius: const Radius.circular(8),
-                      thickness: 3,
-                      child: ReorderableListView.builder(
-                        shrinkWrap: true,
-                        itemCount: selectedFiles.length,
-                        onReorder: (oldIndex, newIndex) {
-                          filesNotifier.reorder(oldIndex, newIndex);
-                        },
-                        padding: EdgeInsets.zero,
-                        buildDefaultDragHandles: true,
-                        itemBuilder: (context, index) {
-                          final file = selectedFiles[index];
-
-                          IconData iconData;
-                          Color iconColor;
-
-                          if (file.extension == 'pdf') {
-                            iconData = Icons.picture_as_pdf_rounded;
-                            iconColor = isDark ? kDarkAccent : Colors.blueAccent;
-                          } else {
-                            iconData = Icons.image_outlined;
-                            iconColor = isDark ? Colors.tealAccent : Colors.teal;
-                          }
-
-                          return ListTile(
-                            key: ValueKey(file.path),
-                            dense: true,
-                            visualDensity: const VisualDensity(vertical: -4),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                            leading: Icon(iconData, color: iconColor, size: 22),
-                            title: Text(
-                              file.name,
-                              style: TextStyle(fontSize: 14.5, color: textColor),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                else
+                  Padding(
+                    padding: const EdgeInsets.only(top: 24.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              "Selected Files",
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                             ),
-                            trailing: GestureDetector(
-                              onTap: () {
-                                filesNotifier.removeFileAt(index);
-                              },
-                              child: const Icon(Icons.close_rounded, color: Colors.redAccent, size: 20),
+                            if (selectedFiles.isNotEmpty)
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: cardColor,
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: borderColor, width: 1),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    GestureDetector(
+                                      onTap: () => ref.read(viewModeProvider.notifier).state = ViewMode.list,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                        decoration: BoxDecoration(
+                                          color: viewMode == ViewMode.list 
+                                            ? (isDark ? kDarkAccent : Colors.blueAccent)
+                                            : Colors.transparent,
+                                          borderRadius: BorderRadius.circular(18),
+                                        ),
+                                        child: Text(
+                                          "List",
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: viewMode == ViewMode.list 
+                                              ? Colors.white 
+                                              : textColor,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    GestureDetector(
+                                      onTap: () => ref.read(viewModeProvider.notifier).state = ViewMode.grid,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                        decoration: BoxDecoration(
+                                          color: viewMode == ViewMode.grid 
+                                            ? (isDark ? kDarkAccent : Colors.blueAccent)
+                                            : Colors.transparent,
+                                          borderRadius: BorderRadius.circular(18),
+                                        ),
+                                        child: Text(
+                                          "Grid",
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: viewMode == ViewMode.grid 
+                                              ? Colors.white 
+                                              : textColor,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 5),
+                        if (viewMode == ViewMode.list)
+                          Container(
+                            decoration: BoxDecoration(
+                              color: cardColor,
+                              border: Border.all(
+                                color: borderColor,
+                                width: 1.2,
+                              ),
+                              borderRadius: BorderRadius.circular(12),
                             ),
-                            onTap: () async {
-                              final filePath = file.path!;
-                              ref.read(selectedFilePathProvider.notifier).state = filePath;
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            constraints: const BoxConstraints(
+                              maxHeight: 210,
+                            ),
+                            child: Scrollbar(
+                              thumbVisibility: true,
+                              radius: const Radius.circular(8),
+                              thickness: 3,
+                              child: ReorderableListView.builder(
+                                shrinkWrap: true,
+                                itemCount: selectedFiles.length,
+                                onReorder: (oldIndex, newIndex) {
+                                  filesNotifier.reorder(oldIndex, newIndex);
+                                },
+                                padding: EdgeInsets.zero,
+                                buildDefaultDragHandles: true,
+                                itemBuilder: (context, index) {
+                                  final file = selectedFiles[index];
 
-                              if (file.extension == 'pdf') {
-                                await OpenFilex.open(filePath);
-                              } else if (['jpg', 'jpeg', 'png', 'gif'].contains(file.extension!.toLowerCase())) {
-                                await OpenFilex.open(filePath);
-                              } else {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text("Unsupported file type.")),
-                                );
-                              }
-                            },
-                          );
-                        },
-                      ),
+                                  IconData iconData;
+                                  Color iconColor;
+
+                                  if (file.extension == 'pdf') {
+                                    iconData = Icons.picture_as_pdf_rounded;
+                                    iconColor = isDark ? kDarkAccent : Colors.blueAccent;
+                                  } else {
+                                    iconData = Icons.image_outlined;
+                                    iconColor = isDark ? Colors.tealAccent : Colors.teal;
+                                  }
+
+                                  return ListTile(
+                                    key: ValueKey(file.path),
+                                    dense: true,
+                                    visualDensity: const VisualDensity(vertical: -4),
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                                    leading: Icon(iconData, color: iconColor, size: 22),
+                                    title: Text(
+                                      file.name,
+                                      style: TextStyle(fontSize: 14.5, color: textColor),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    trailing: GestureDetector(
+                                      onTap: () {
+                                        filesNotifier.removeFileAt(index);
+                                      },
+                                      child: const Icon(Icons.close_rounded, color: Colors.redAccent, size: 20),
+                                    ),
+                                    onTap: () async {
+                                      final filePath = file.path!;
+                                      ref.read(selectedFilePathProvider.notifier).state = filePath;
+
+                                      if (file.extension == 'pdf') {
+                                        await OpenFilex.open(filePath);
+                                      } else if (['jpg', 'jpeg', 'png', 'gif'].contains(file.extension!.toLowerCase())) {
+                                        await OpenFilex.open(filePath);
+                                      } else {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(content: Text("Unsupported file type.")),
+                                        );
+                                      }
+                                    },
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
 
-
-                  const SizedBox(height: 10),
+                const SizedBox(height: 10),
+                if (selectedFiles.isNotEmpty)
                   Align(
                     alignment: Alignment.center,
                     child: AnimatedContainer(
@@ -753,89 +823,106 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           ),
                         ),
                       ),
-
                     ),
                   ),
 
-                ],
-              ),
-            ),
+                const SizedBox(height: 25),
 
+                CustomDropdown(
+                  selectedTool: selectedTool,
+                  onChanged: (val) {
+                    ref.read(selectedToolProvider.notifier).state = val;
+                  },
+                  isDark: isDark,
+                  textColor: textColor,
+                ),
 
-            const SizedBox(height: 25),
-
-            CustomDropdown(
-              selectedTool: selectedTool,
-              onChanged: (val) {
-                ref.read(selectedToolProvider.notifier).state = val;
-              },
-              isDark: isDark,
-              textColor: textColor,
-            ),
-
-            const SizedBox(height: 36),
-            
-            const SizedBox(height: 25),
-            Flexible(
-              child: Align(
-                alignment: Alignment.topCenter,
-                child: selectedFiles.isEmpty
-                    ? Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-                        padding: const EdgeInsets.all(40),
-                        decoration: BoxDecoration(
-                          color: cardColor,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: borderColor),
-                          boxShadow: [
-                            BoxShadow(
-                              color: isDark ? Colors.black26 : Colors.black12,
-                              blurRadius: 8,
-                              offset: Offset(0, 4),
+                const SizedBox(height: 36),
+                
+                const SizedBox(height: 25),
+                Flexible(
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: selectedFiles.isEmpty
+                        ? Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                            padding: const EdgeInsets.all(40),
+                            decoration: BoxDecoration(
+                              color: cardColor,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: borderColor),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: isDark ? Colors.black26 : Colors.black12,
+                                  blurRadius: 8,
+                                  offset: Offset(0, 4),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                              Image.asset(
-                                'assets/2.png',
-                                height: 150,
-                                width: 150,
-                                fit: BoxFit.contain,
-                              ),
-                            const SizedBox(height: 12),
-                            Text(
-                              "Start by choosing a tool or uploading a file.",
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w400,
-                                color: textColor.withOpacity(0.55),
-                                letterSpacing: 0.2,
-                              ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                  Image.asset(
+                                    'assets/2.png',
+                                    height: 150,
+                                    width: 150,
+                                    fit: BoxFit.contain,
+                                  ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  "Start by choosing a tool or uploading a file.",
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w400,
+                                    color: textColor.withOpacity(0.55),
+                                    letterSpacing: 0.2,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                              ],
                             ),
-                            const SizedBox(height: 8),
-                          ],
-                        ),
-                      )
-                    : const SizedBox(height:10)
+                          )
+                        : const SizedBox(height:10)
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 30),
+                  child: Align(
+                    alignment: Alignment.bottomCenter,
+                    child: CameraButton(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          // Grid View Overlay
+          if (viewMode == ViewMode.grid && selectedFiles.isNotEmpty)
+            Positioned.fill(
+              child: Container(
+                color: Colors.black.withOpacity(0.3),
+                child: Center(
+                  child: GridViewOverlay(
+                    files: selectedFiles,
+                    onRemoveFile: (index) => filesNotifier.removeFileAt(index),
+                    onReorder: (oldIndex, newIndex) => filesNotifier.reorder(oldIndex, newIndex),
+                    isDark: isDark,
+                    textColor: textColor,
+                    cardColor: cardColor,
+                    borderColor: borderColor,
+                    onClose: () {
+                      // Switch back to list view when grid is closed
+                      ref.read(viewModeProvider.notifier).state = ViewMode.list;
+                    },
+                  ),
+                ),
               ),
             ),
-
-            const SizedBox(height: 20),
-
-            Padding(
-              padding: const EdgeInsets.only(bottom: 30),
-              child: Align(
-                alignment: Alignment.bottomCenter,
-                child: CameraButton(),
-              ),
-            ),
-
-
-          ],
-        ),
+        ],
       ),
     );
   }

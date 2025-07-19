@@ -77,7 +77,6 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
       ref.read(mergePdfFilesProvider.notifier).clear();
       ref.read(imageToPdfFilesProvider.notifier).clear();
       ref.read(encryptPdfFilesProvider.notifier).clear();
-      ref.read(unlockPdfFilesProvider.notifier).clear();
       ref.read(splitPdfFilesProvider.notifier).clear();
       ref.read(reorderPdfFilesProvider.notifier).clear();
     });
