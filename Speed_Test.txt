@@ -1,24 +1,60 @@
 Speed Test 
 
-# Image To PDF - 30 Images
+Sizes
+BLUE PDF - 50.92 MB
+MERGE PDF - 19.92 MB
+DOC SCANNER - 119 MB
+SMALL PDF - 94.45 MB
+IMAGE TO PDF  - 46.29 MB
 
-BLUE PDF - 6.24 sec
-Merge PDF - 8.99 sec  -  Lighest and Top speed app on playstore
+# Image To PDF
+
+5 Images ( in secs )
+BLUE PDF - 2.67 
+MERGE PDF - 2.45
+DOC SCANNER - 1.73
+SMALL PDF - 5.20
+IMAGE TO PDF - 1.52
 
 10 Images
-Merge PDF - 4.02 sec
-BLUE PDF - 3.82 sec
+BLUE PDF - 3.64
+MERGE PDF - 4.64
+DOC SCANNER - 3.05
+SMALL PDF - Require Pro Subscription 
+IMAGE TO PDF - 
+
+20 Images 
+BLUE PDF - 5.86
+MERGE PDF - 6.86
+DOC SCANNER - 2.80
+SMALL PDF - 
+IMAGE TO PDF - 3.70
+
+30 Images
+BLUE PDF - 7.42
+MERGE PDF - 8.98
+DOC SCANNER - 3.03
+SMALL PDF - 
+IMAGE TO PDF - 4.69
+
+# Merge PDF
+
+5 PDF
+BLUE PDF - 1.93
+MERGE PDF - 1.81
+DOC SCANNER - 2.10
+SMALL PDF - 
+IMAGE TO PDF - 3.29
+
+
 
 # Merge PDF - 5 PDF
 
-BLUE PDF - 2.23 sec
-Merge PDF - 1.74 sec
 
-10 PDF
-BLUE PDF - 2.52 sec
-Merge PDF - 1.39 sec
+
+
+
+
 
 # Rorder PDF 
 
-BLUE PDF - 
-Merge PDF - 

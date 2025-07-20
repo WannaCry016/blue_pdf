@@ -1,7 +1,5 @@
 # Blue PDF
 
-Grid View 
-
 
 commands
 flutter build apk --split-per-abi

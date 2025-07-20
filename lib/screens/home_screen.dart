@@ -94,19 +94,36 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const Dialog(
-        backgroundColor: Colors.white,
-        child: Padding(
-          padding: EdgeInsets.symmetric(vertical: 20, horizontal: 24),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(width: 20),
-              Flexible(child: Text("Processing PDF...", style: TextStyle(fontSize: 16))),
-            ],
-          ),
-        ),
+      builder: (_) => Builder(
+        builder: (dialogContext) {
+          final isDarkMode = Theme.of(dialogContext).brightness == Brightness.dark;
+          return Dialog(
+            backgroundColor: isDarkMode ? kDarkCard : Colors.white,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      isDarkMode ? kDarkAccent : Colors.blueAccent,
+                    ),
+                  ),
+                  const SizedBox(width: 20),
+                  Flexible(
+                    child: Text(
+                      "Processing PDF...", 
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: isDarkMode ? kDarkText : Colors.black87,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
 
@@ -127,7 +144,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       } else if (selectedTool == 'Encrypt PDF') {
         final password = await _promptPassword(context, action: "Encrypt");
         if (password == null || password.isEmpty) {
-          throw Exception("Encryption password not provided.");
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text("⚠️ Please enter a password to encrypt."),
+                duration: Duration(seconds: 1), // 👈 this goes inside
+              ),
+            );
+            // Dismiss loading dialog before save screen
+            Navigator.pop(context);
+          }
+          return; // ✅ this exits the try block and the function
         }
         initialCachePath = await encryptPdf(filePaths.first, password); 
       } else if (selectedTool == 'Split PDF') {
@@ -313,24 +340,36 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         showDialog(
           context: context,
           barrierDismissible: false,
-          builder: (_) => const Dialog(
-            backgroundColor: Colors.white,
-            child: Padding(
-              padding: EdgeInsets.symmetric(vertical: 20, horizontal: 24),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(width: 20),
-                  Flexible(
-                    child: Text(
-                      "Loading files...",
-                      style: TextStyle(fontSize: 16),
-                    ),
+          builder: (_) => Builder(
+            builder: (dialogContext) {
+              final isDarkMode = Theme.of(dialogContext).brightness == Brightness.dark;
+              return Dialog(
+                backgroundColor: isDarkMode ? kDarkCard : Colors.white,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          isDarkMode ? kDarkAccent : Colors.blueAccent,
+                        ),
+                      ),
+                      const SizedBox(width: 20),
+                      Flexible(
+                        child: Text(
+                          "Loading files...",
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: isDarkMode ? kDarkText : Colors.black87,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
+                ),
+              );
+            },
           ),
         );
 

@@ -54,6 +54,7 @@ class _GridViewOverlayState extends ConsumerState<GridViewOverlay>
   // Drag and drop state
   int? _draggedIndex;
   int? _dragTargetIndex;
+  bool _isDragging = false;
 
   @override
   void initState() {
@@ -108,6 +109,7 @@ class _GridViewOverlayState extends ConsumerState<GridViewOverlay>
   void _onDragStarted(int index) {
     setState(() {
       _draggedIndex = index;
+      _isDragging = true;
     });
   }
 
@@ -115,6 +117,7 @@ class _GridViewOverlayState extends ConsumerState<GridViewOverlay>
     setState(() {
       _draggedIndex = null;
       _dragTargetIndex = null;
+      _isDragging = false;
     });
   }
 
@@ -126,6 +129,7 @@ class _GridViewOverlayState extends ConsumerState<GridViewOverlay>
     setState(() {
       _draggedIndex = null;
       _dragTargetIndex = null;
+      _isDragging = false;
     });
   }
 
@@ -285,12 +289,14 @@ class _GridViewOverlayState extends ConsumerState<GridViewOverlay>
       onAcceptWithDetails: (details) => _onDragAccepted(index),
       onLeave: (data) => _onDragTargetUpdate(null),
       builder: (context, candidateData, rejectedData) {
-        return Draggable<int>(
+        return LongPressDraggable<int>(
           data: index,
+          delay: const Duration(milliseconds: 300), // Hold for 300ms to start drag
           onDragStarted: () => _onDragStarted(index),
           onDragEnd: (details) => _onDragEnd(),
+          hapticFeedbackOnStart: true,
           feedback: Material(
-            elevation: 8,
+            elevation: 12,
             borderRadius: BorderRadius.circular(16),
             child: Container(
               width: 120,
@@ -347,6 +353,7 @@ class _GridViewOverlayState extends ConsumerState<GridViewOverlay>
           Expanded(
             child: GestureDetector(
               onTap: () async {
+                if (_isDragging) return; // Prevent tap during drag
                 final filePath = file.path!;
                 try {
                   await OpenFilex.open(filePath);
