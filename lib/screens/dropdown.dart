@@ -5,6 +5,9 @@ class CustomDropdown extends StatefulWidget {
   final Function(String) onChanged;
   final bool isDark;
   final Color textColor;
+  final double fontSize;
+  final double iconSize;
+  final EdgeInsets padding;
 
   const CustomDropdown({
     super.key,
@@ -12,6 +15,9 @@ class CustomDropdown extends StatefulWidget {
     required this.onChanged,
     required this.isDark,
     required this.textColor,
+    this.fontSize = 15,
+    this.iconSize = 20,
+    this.padding = const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
   });
 
   @override
@@ -82,7 +88,7 @@ class _CustomDropdownState extends State<CustomDropdown> {
               color: Colors.transparent,
               child: Container(
                 constraints: BoxConstraints(
-                  maxHeight: 200, // Adjust height to fit 4 items or based on screen
+                  maxHeight: 190, // Adjust height to fit 4 items or based on screen
                 ),
                 decoration: BoxDecoration(
                   color: widget.isDark ? Colors.grey[900] : Colors.white,
@@ -105,15 +111,15 @@ class _CustomDropdownState extends State<CustomDropdown> {
                         _removeDropdown();
                       },
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        padding: EdgeInsets.symmetric(horizontal: widget.padding.horizontal / 2, vertical: widget.padding.vertical / 2),
                         child: Row(
                           children: [
-                            Icon(tool['icon'], color: Colors.blueAccent, size: 20),
-                            const SizedBox(width: 10),
+                            Icon(tool['icon'], color: Colors.blueAccent, size: widget.iconSize),
+                            SizedBox(width: widget.iconSize / 2),
                             Text(
                               tool['label'],
                               style: TextStyle(
-                                fontSize: 15,
+                                fontSize: widget.fontSize,
                                 fontWeight: FontWeight.w500,
                                 color: widget.isDark ? Colors.white : Colors.black87,
                               ),
@@ -152,7 +158,7 @@ class _CustomDropdownState extends State<CustomDropdown> {
       key: _dropdownKey,
       onTap: _toggleDropdown,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        padding: widget.padding,
         decoration: BoxDecoration(
           color: widget.isDark ? Colors.grey[850] : Colors.white,
           borderRadius: BorderRadius.circular(10),
@@ -160,13 +166,13 @@ class _CustomDropdownState extends State<CustomDropdown> {
         ),
         child: Row(
           children: [
-            const Icon(Icons.folder_open, size: 20, color: Colors.blueAccent),
-            const SizedBox(width: 10),
+            Icon(Icons.folder_open, size: widget.iconSize, color: Colors.blueAccent),
+            SizedBox(width: widget.iconSize / 2),
             Expanded(
               child: Text(
                 widget.selectedTool ?? "Choose a Tool",
                 style: TextStyle(
-                  fontSize: 15,
+                  fontSize: widget.fontSize,
                   fontWeight: FontWeight.w600,
                   color: widget.selectedTool != null
                       ? widget.textColor
@@ -174,7 +180,7 @@ class _CustomDropdownState extends State<CustomDropdown> {
                 ),
               ),
             ),
-            const Icon(Icons.arrow_drop_down_rounded, size: 28, color: Colors.black54),
+            Icon(Icons.arrow_drop_down_rounded, size: widget.iconSize + 8, color: Colors.black54),
           ],
         ),
       ),

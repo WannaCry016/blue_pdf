@@ -106,7 +106,7 @@ class _SavePdfOverlayState extends ConsumerState<SavePdfOverlay> {
     final String finalFilename = filename.endsWith('.pdf') ? filename : '$filename.pdf';
     return await FileSaver.instance.saveAs(
       name: finalFilename.replaceAll(".pdf", ""),
-      ext: "pdf",
+      fileExtension: "pdf",
       bytes: bytes,
       mimeType: MimeType.pdf,
     );

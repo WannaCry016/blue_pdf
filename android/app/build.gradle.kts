@@ -31,7 +31,7 @@ android {
         applicationId = "com.bluepdf.blue_pdf"
         minSdk = 24
         targetSdk = flutter.targetSdkVersion
-        versionCode = 5
+        versionCode = 6
         versionName = "1.0.1"
     }
 

@@ -7,6 +7,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 
+// Responsive helper: returns true if device is a tablet (width > 600dp)
+bool isTablet(BuildContext context) {
+  final width = MediaQuery.of(context).size.shortestSide;
+  return width >= 600;
+}
 
 class ProcessSuccessScreen extends ConsumerStatefulWidget {
   final String resultPath;
@@ -61,6 +66,7 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isTab = isTablet(context);
     final bgColor = isDark ? const Color(0xFF101A30) : const Color(0xFFEEEEF0);
     final cardColor = isDark ? const Color(0xFF1A2236) : Colors.white;
     final borderColor = isDark ? const Color(0xFF232A3B) : Colors.grey.shade300;
@@ -83,11 +89,30 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
 
     final fileSize = _getFileSize(widget.resultPath);
 
+    // Responsive sizes
+    final double mainFont = isTab ? 36 : 28;
+    final double subFont = isTab ? 22 : 16;
+    final double quoteFont = isTab ? 18 : 13.5;
+    final double cardFont = isTab ? 20 : 14.5;
+    final double fileSizeFont = isTab ? 17 : 13;
+    final double iconSize = isTab ? 48 : 32;
+    final double celebrationIcon = isTab ? 110 : 68;
+    final double celebrationPad = isTab ? 44 : 28;
+    final double cardPad = isTab ? 32 : 18;
+    final double cardRadius = isTab ? 22 : 14;
+    final double buttonFont = isTab ? 22 : 16;
+    final double buttonPad = isTab ? 24 : 16;
+    final double buttonIcon = isTab ? 32 : 22;
+    final double contentMaxWidth = isTab ? 600 : double.infinity;
+    final double contentPad = isTab ? 48 : 24;
+    final double vSpace = isTab ? 44 : 28;
+    final double hButtonSpace = isTab ? 32 : 16;
+
     return Scaffold(
       backgroundColor: bgColor,
       appBar: AppBar(
         elevation: 0,
-        toolbarHeight: 50,
+        toolbarHeight: isTab ? 70 : 50,
         backgroundColor: Colors.transparent,
         flexibleSpace: Container(
           decoration: BoxDecoration(
@@ -98,16 +123,16 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
             ),
           ),
         ),
-        leading: const Icon(
+        leading: Icon(
           Icons.picture_as_pdf,
           color: Colors.white,
-          size: 26,
+          size: isTab ? 38 : 26,
         ),
-        title: const Text(
+        title: Text(
           "BLUE PDF",
           style: TextStyle(
             fontFamily: 'sans-serif',
-            fontSize: 20,
+            fontSize: isTab ? 28 : 20,
             fontWeight: FontWeight.w600,
             color: Colors.white,
           ),
@@ -116,7 +141,7 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
         actions: [
           IconButton(
             tooltip: "About Developer",
-            icon: const Icon(Icons.info_outline, color: Colors.white, size: 22),
+            icon: Icon(Icons.info_outline, color: Colors.white, size: isTab ? 30 : 22),
             onPressed: () {
               Navigator.push(context, MaterialPageRoute(builder: (_) => const AboutPage()));
             },
@@ -126,163 +151,221 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
       body: SafeArea(
         child: Center(
           child: Padding(
-            padding: const EdgeInsets.all(24),
+            padding: EdgeInsets.all(contentPad),
             child: SingleChildScrollView(
-              child: Column(
-                children: [
-                  // 🎉 Celebration Icon
-                  Container(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LinearGradient(
-                        colors: gradientColors,
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: isDark ? accent.withOpacity(0.18) : Colors.blue.withOpacity(0.18),
-                          blurRadius: 18,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    padding: const EdgeInsets.all(28),
-                    child: const Icon(Icons.celebration_rounded, size: 68, color: Colors.white),
-                  ),
-
-                  const SizedBox(height: 28),
-
-                  // ✅ Headline
-                  Text(
-                    "File Ready 🎉",
-                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: textColor, letterSpacing: 0.2),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    "Thanks for using Blue PDF!\nYour file is ready to go and saved securely.",
-                    style: TextStyle(fontSize: 16, color: secondaryTextColor, fontWeight: FontWeight.w500),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 14),
-                  Text(
-                    "“Great things happen when you're organized.”",
-                    style: TextStyle(
-                      fontSize: 13.5,
-                      fontStyle: FontStyle.italic,
-                      color: secondaryTextColor.withOpacity(0.7),
-                      height: 1.4,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-
-                  const SizedBox(height: 32),
-
-                  // 📄 File Info Card
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                      color: cardColor,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: borderColor),
-                      boxShadow: [
-                        BoxShadow(
-                          color: isDark ? Colors.black26 : Colors.black12,
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.picture_as_pdf, size: 32, color: Colors.redAccent),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                widget.resultPath,
-                                style: TextStyle(
-                                  fontSize: 14.5,
-                                  fontWeight: FontWeight.w600,
-                                  color: textColor,
-                                ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                fileSize,
-                                style: TextStyle(fontSize: 13, color: secondaryTextColor),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 28),
-
-                  // 🔁 Preview + Share
-                  Row(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: contentMaxWidth),
+                  child: Column(
                     children: [
-                      Expanded(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: gradientColors,
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
+                      // 🎉 Celebration Icon
+                      Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LinearGradient(
+                            colors: gradientColors,
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: isDark ? accent.withOpacity(0.18) : Colors.blue.withOpacity(0.18),
+                              blurRadius: isTab ? 28 : 18,
+                              offset: const Offset(0, 6),
                             ),
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
-                              BoxShadow(
-                                color: isDark ? accent.withOpacity(0.13) : Colors.blue.withOpacity(0.13),
-                                blurRadius: 8,
-                                offset: const Offset(0, 3),
+                          ],
+                        ),
+                        padding: EdgeInsets.all(celebrationPad),
+                        child: Icon(Icons.celebration_rounded, size: celebrationIcon, color: Colors.white),
+                      ),
+
+                      SizedBox(height: vSpace),
+
+                      // ✅ Headline
+                      Text(
+                        "File Ready 🎉",
+                        style: TextStyle(fontSize: mainFont, fontWeight: FontWeight.bold, color: textColor, letterSpacing: 0.2),
+                      ),
+                      SizedBox(height: isTab ? 20 : 12),
+                      Text(
+                        "Thanks for using Blue PDF!\nYour file is ready to go and saved securely.",
+                        style: TextStyle(fontSize: subFont, color: secondaryTextColor, fontWeight: FontWeight.w500),
+                        textAlign: TextAlign.center,
+                      ),
+                      SizedBox(height: isTab ? 18 : 14),
+                      Text(
+                        "“Great things happen when you're organized.”",
+                        style: TextStyle(
+                          fontSize: quoteFont,
+                          fontStyle: FontStyle.italic,
+                          color: secondaryTextColor.withOpacity(0.7),
+                          height: 1.4,
+                        ),
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+
+                      SizedBox(height: isTab ? 40 : 32),
+
+                      // 📄 File Info Card
+                      Container(
+                        width: double.infinity,
+                        padding: EdgeInsets.all(cardPad),
+                        decoration: BoxDecoration(
+                          color: cardColor,
+                          borderRadius: BorderRadius.circular(cardRadius),
+                          border: Border.all(color: borderColor),
+                          boxShadow: [
+                            BoxShadow(
+                              color: isDark ? Colors.black26 : Colors.black12,
+                              blurRadius: isTab ? 14 : 8,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.picture_as_pdf, size: iconSize, color: Colors.redAccent),
+                            SizedBox(width: isTab ? 24 : 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    widget.resultPath,
+                                    style: TextStyle(
+                                      fontSize: cardFont,
+                                      fontWeight: FontWeight.w600,
+                                      color: textColor,
+                                    ),
+                                    maxLines: isTab ? 3 : 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  SizedBox(height: isTab ? 8 : 4),
+                                  Text(
+                                    fileSize,
+                                    style: TextStyle(fontSize: fileSizeFont, color: secondaryTextColor),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
-                          child: ElevatedButton.icon(
-                            icon: const Icon(Icons.picture_as_pdf_rounded, color: Colors.white),
-                            label: const Text("Preview", style: TextStyle(fontSize: 15, color: Colors.white)),
-                            onPressed: () async {
-                              final file = File(cachePath);
-
-                              if (await file.exists()) {
-                                final result = await OpenFilex.open(
-                                  file.path,
-                                  type: "application/pdf",
-                                );
-
-                                if (result.type != ResultType.done) {
-                                  print('❌ Could not open file: \\${result.message}');
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text("Failed to open PDF viewer.")),
-                                  );
-                                }
-                              } else {
-                                print('❌ Preview file missing: \\${file.path}');
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text("File not found in cache.")),
-                                );
-                              }
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.transparent,
-                              shadowColor: Colors.transparent,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              elevation: 0,
                             ),
-                          ),
+                          ],
                         ),
                       ),
-                      const SizedBox(width: 16),
-                      Expanded(
+
+                      SizedBox(height: vSpace),
+
+                      // 🔁 Preview + Share
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: gradientColors,
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: BorderRadius.circular(cardRadius),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: isDark ? accent.withOpacity(0.13) : Colors.blue.withOpacity(0.13),
+                                    blurRadius: isTab ? 14 : 8,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ],
+                              ),
+                              child: ElevatedButton.icon(
+                                icon: Icon(Icons.picture_as_pdf_rounded, color: Colors.white, size: buttonIcon),
+                                label: Text("Preview", style: TextStyle(fontSize: buttonFont, color: Colors.white)),
+                                onPressed: () async {
+                                  final file = File(cachePath);
+
+                                  if (await file.exists()) {
+                                    final result = await OpenFilex.open(
+                                      file.path,
+                                      type: "application/pdf",
+                                    );
+
+                                    if (result.type != ResultType.done) {
+                                      print('❌ Could not open file: \\${result.message}');
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(content: Text("Failed to open PDF viewer.")),
+                                      );
+                                    }
+                                  } else {
+                                    print('❌ Preview file missing: \\${file.path}');
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text("File not found in cache.")),
+                                    );
+                                  }
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.transparent,
+                                  shadowColor: Colors.transparent,
+                                  padding: EdgeInsets.symmetric(vertical: buttonPad),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(cardRadius)),
+                                  elevation: 0,
+                                ),
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: hButtonSpace),
+                          Expanded(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: gradientColors,
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: BorderRadius.circular(cardRadius),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: isDark ? accent.withOpacity(0.13) : Colors.blue.withOpacity(0.13),
+                                    blurRadius: isTab ? 14 : 8,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ],
+                              ),
+                              child: ElevatedButton.icon(
+                                icon: Icon(Icons.share, color: Colors.white, size: buttonIcon),
+                                label: Text("Share", style: TextStyle(fontSize: buttonFont, color: Colors.white)),
+                                onPressed: () async {
+                                  final file = File(cachePath);
+                                  if (await file.exists()) {
+                                    try {
+                                      await SharePlus.instance.share(
+                                        ShareParams(
+                                          files: [XFile(file.path, mimeType: 'application/pdf')],
+                                        ),
+                                      );
+                                    } catch (e) {
+                                      print('❌ Share failed: \\${e}');
+                                    }
+                                  } else {
+                                    print('❌ Cache file not found: \\${file.path}');
+                                  }
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.transparent,
+                                  shadowColor: Colors.transparent,
+                                  padding: EdgeInsets.symmetric(vertical: buttonPad),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(cardRadius)),
+                                  elevation: 0,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      SizedBox(height: vSpace),
+
+                      // ⬅️ Back to Home
+                      SizedBox(
+                        width: double.infinity,
                         child: Container(
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
@@ -290,39 +373,24 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ),
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(cardRadius),
                             boxShadow: [
                               BoxShadow(
                                 color: isDark ? accent.withOpacity(0.13) : Colors.blue.withOpacity(0.13),
-                                blurRadius: 8,
+                                blurRadius: isTab ? 14 : 8,
                                 offset: const Offset(0, 3),
                               ),
                             ],
                           ),
                           child: ElevatedButton.icon(
-                            icon: const Icon(Icons.share, color: Colors.white),
-                            label: const Text("Share", style: TextStyle(fontSize: 15, color: Colors.white)),
-                            onPressed: () async {
-                              final file = File(cachePath);
-                              if (await file.exists()) {
-                                try {
-                                  await SharePlus.instance.share(
-                                    ShareParams(
-                                      files: [XFile(file.path, mimeType: 'application/pdf')],
-                                    ),
-                                  );
-                                } catch (e) {
-                                  print('❌ Share failed: \\${e}');
-                                }
-                              } else {
-                                print('❌ Cache file not found: \\${file.path}');
-                              }
-                            },
+                            icon: Icon(Icons.home, color: Colors.white, size: buttonIcon),
+                            label: Text("Back to Home", style: TextStyle(fontSize: buttonFont, color: Colors.white)),
+                            onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.transparent,
                               shadowColor: Colors.transparent,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              padding: EdgeInsets.symmetric(vertical: buttonPad + 4),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(cardRadius)),
                               elevation: 0,
                             ),
                           ),
@@ -330,43 +398,7 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
                       ),
                     ],
                   ),
-
-                  const SizedBox(height: 28),
-
-                  // ⬅️ Back to Home
-                  SizedBox(
-                    width: double.infinity,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: gradientColors,
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: isDark ? accent.withOpacity(0.13) : Colors.blue.withOpacity(0.13),
-                            blurRadius: 8,
-                            offset: const Offset(0, 3),
-                          ),
-                        ],
-                      ),
-                      child: ElevatedButton.icon(
-                        icon: const Icon(Icons.home, color: Colors.white),
-                        label: const Text("Back to Home", style: TextStyle(fontSize: 16, color: Colors.white)),
-                        onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.transparent,
-                          shadowColor: Colors.transparent,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          elevation: 0,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           ),

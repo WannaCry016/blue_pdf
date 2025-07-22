@@ -10,7 +10,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:pro_image_editor/pro_image_editor.dart';
 
 class CameraButton extends ConsumerWidget {
-  const CameraButton({super.key});
+  final double iconSize;
+  const CameraButton({super.key, this.iconSize = 36});
 
   Future<void> _startCaptureFlow(BuildContext context, WidgetRef ref) async {
   bool result = false;
@@ -96,8 +97,8 @@ class CameraButton extends ConsumerWidget {
                 ),
               ],
             ),
-            child: const Center(
-              child: Icon(Icons.camera_alt, size: 36, color: Colors.white),
+            child: Center(
+              child: Icon(Icons.camera_alt, size: iconSize, color: Colors.white),
             ),
           ),
         ),

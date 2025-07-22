@@ -25,6 +25,10 @@ class GridViewOverlay extends ConsumerStatefulWidget {
   final Color cardColor;
   final Color borderColor;
   final VoidCallback? onClose;
+  final double thumbSize;
+  final double fontSize;
+  final double iconSize;
+  final double closeIconSize;
 
   const GridViewOverlay({
     super.key,
@@ -36,6 +40,10 @@ class GridViewOverlay extends ConsumerStatefulWidget {
     required this.cardColor,
     required this.borderColor,
     this.onClose,
+    this.thumbSize = 70,
+    this.fontSize = 14.5,
+    this.iconSize = 22,
+    this.closeIconSize = 20,
   });
 
   @override
@@ -182,13 +190,13 @@ class _GridViewOverlayState extends ConsumerState<GridViewOverlay>
                         Icon(
                           Icons.grid_view_rounded,
                           color: widget.isDark ? kDarkAccent : Colors.blueAccent,
-                          size: 24,
+                          size: widget.iconSize,
                         ),
                         const SizedBox(width: 12),
                         Text(
                           "Files Grid View",
                           style: TextStyle(
-                            fontSize: 18,
+                            fontSize: widget.fontSize + 3.5,
                             fontWeight: FontWeight.w600,
                             color: widget.textColor,
                           ),
@@ -202,8 +210,8 @@ class _GridViewOverlayState extends ConsumerState<GridViewOverlay>
                           ),
                           child: Text(
                             "${widget.files.length}",
-                            style: const TextStyle(
-                              fontSize: 12,
+                            style: TextStyle(
+                              fontSize:  widget.fontSize - 2.5,
                               fontWeight: FontWeight.w600,
                               color: Colors.white,
                             ),
@@ -216,7 +224,7 @@ class _GridViewOverlayState extends ConsumerState<GridViewOverlay>
                       icon: Icon(
                         Icons.close,
                         color: widget.textColor.withOpacity(0.7),
-                        size: 24,
+                        size: widget.closeIconSize,
                       ),
                       tooltip: "Close Grid View",
                     ),
@@ -233,14 +241,14 @@ class _GridViewOverlayState extends ConsumerState<GridViewOverlay>
                           children: [
                             Icon(
                               Icons.folder_open_outlined,
-                              size: 64,
+                              size: widget.iconSize - 10,
                               color: widget.textColor.withOpacity(0.5),
                             ),
                             const SizedBox(height: 16),
                             Text(
                               "No files selected",
                               style: TextStyle(
-                                fontSize: 16,
+                                fontSize: widget.fontSize - 2.5,
                                 color: widget.textColor.withOpacity(0.7),
                               ),
                             ),
@@ -250,10 +258,10 @@ class _GridViewOverlayState extends ConsumerState<GridViewOverlay>
                     : Padding(
                         padding: const EdgeInsets.all(16),
                         child: GridView.builder(
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 3,
-                            crossAxisSpacing: 16,
-                            mainAxisSpacing: 16,
+                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: widget.thumbSize > 100 ? 4 : 3,
+                            crossAxisSpacing: widget.thumbSize / 5,
+                            mainAxisSpacing: widget.thumbSize / 5,
                             childAspectRatio: 0.75,
                           ),
                           itemCount: widget.files.length,
@@ -299,8 +307,8 @@ class _GridViewOverlayState extends ConsumerState<GridViewOverlay>
             elevation: 12,
             borderRadius: BorderRadius.circular(16),
             child: Container(
-              width: 120,
-              height: 160,
+              width: widget.thumbSize * 1.7,
+              height: widget.thumbSize * 2.2,
               decoration: BoxDecoration(
                 color: widget.cardColor,
                 borderRadius: BorderRadius.circular(16),
@@ -389,7 +397,7 @@ class _GridViewOverlayState extends ConsumerState<GridViewOverlay>
                       child: Icon(
                         Icons.drag_handle,
                         color: Colors.white,
-                        size: 16,
+                        size: widget.iconSize - 6,
                       ),
                     ),
                   ),
@@ -400,7 +408,7 @@ class _GridViewOverlayState extends ConsumerState<GridViewOverlay>
           
           // Action bar
           Container(
-            height: 40,
+            height: widget.thumbSize * 0.55,
             decoration: BoxDecoration(
               color: widget.isDark ? kDarkBorder : Colors.grey.shade200,
               borderRadius: const BorderRadius.only(
@@ -420,7 +428,7 @@ class _GridViewOverlayState extends ConsumerState<GridViewOverlay>
                       child: Icon(
                         Icons.rotate_right,
                         color: widget.textColor.withOpacity(0.7),
-                        size: 18,
+                        size: widget.iconSize - 4,
                       ),
                     ),
                   ),
@@ -431,7 +439,7 @@ class _GridViewOverlayState extends ConsumerState<GridViewOverlay>
                     child: Icon(
                       Icons.picture_as_pdf,
                       color: widget.isDark ? kDarkAccent : Colors.blueAccent,
-                      size: 18,
+                      size: widget.iconSize - 4,
                     ),
                   ),
                 ],
@@ -444,7 +452,7 @@ class _GridViewOverlayState extends ConsumerState<GridViewOverlay>
                     child: Icon(
                       Icons.close,
                       color: Colors.redAccent,
-                      size: 18,
+                      size: widget.closeIconSize,
                     ),
                   ),
                 ),
@@ -466,7 +474,7 @@ class _GridViewOverlayState extends ConsumerState<GridViewOverlay>
         children: [
           Icon(
             Icons.picture_as_pdf_rounded,
-            size: 32,
+            size: widget.iconSize + 10,
             color: widget.isDark ? kDarkAccent : Colors.blueAccent,
           ),
           const SizedBox(height: 6),
@@ -475,7 +483,7 @@ class _GridViewOverlayState extends ConsumerState<GridViewOverlay>
             child: Text(
               file.name,
               style: TextStyle(
-                fontSize: 10,
+                fontSize: widget.fontSize - 4.5,
                 color: widget.textColor,
                 fontWeight: FontWeight.w500,
               ),
@@ -536,7 +544,7 @@ class _GridViewOverlayState extends ConsumerState<GridViewOverlay>
         children: [
           Icon(
             Icons.image_not_supported_outlined,
-            size: 48,
+            size: widget.iconSize + 18,
             color: widget.textColor.withOpacity(0.5),
           ),
           const SizedBox(height: 8),
@@ -545,7 +553,7 @@ class _GridViewOverlayState extends ConsumerState<GridViewOverlay>
             child: Text(
               fileName,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: widget.fontSize - 2.5,
                 color: widget.textColor,
                 fontWeight: FontWeight.w500,
               ),

@@ -429,6 +429,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
+  // Responsive helper: returns true if device is a tablet (width > 600dp)
+  bool isTablet(BuildContext context) {
+    final width = MediaQuery.of(context).size.shortestSide;
+    return width >= 600;
+  }
+
+  // Responsive size helpers
+  T responsive<T>(BuildContext context, T phone, T tablet) => isTablet(context) ? tablet : phone;
 
 
   @override
@@ -525,422 +533,493 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         ],
       ),
-      body: Stack(
-        children: [
-          // Main content
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 32),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                GestureDetector(
-                  onTap: () {
-                    if (selectedTool == null) {
-                      showDialog(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          title: const Text("Tool Not Selected"),
-                          content: const Text(
-                            "Please select a tool before choosing a file.",
-                            style: TextStyle(fontSize: 15),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isTab = isTablet(context);
+          final isDark = Theme.of(context).brightness == Brightness.dark;
+          final textColor = isDark ? kDarkText : Colors.black87;
+          final secondaryTextColor = isDark ? kDarkSecondaryText : Colors.grey.shade600;
+          final bgColor = isDark ? kDarkBg : const Color(0xFFECEFF1);
+          final cardColor = isDark ? kDarkCard : Colors.white;
+          final borderColor = isDark ? kDarkBorder : Colors.grey.shade300;
+          final gradientColors = isDark
+              ? [kDarkPrimary, kDarkAccent, kDarkTeal]
+              : [Color(0xFF0D47A1), Color(0xFF1976D2)];
+
+          // Calculate dynamic sizes (responsive for tablet)
+          final double screenHeight = constraints.maxHeight;
+          final double screenWidth = constraints.maxWidth;
+          final double boxImageSize = isTab ? screenWidth * 0.22 : screenWidth * 0.35;
+          final double boxPadding = isTab ? screenHeight * 0.06 : screenHeight * 0.04;
+          final double boxMinHeight = isTab ? screenHeight * 0.32 : screenHeight * 0.22;
+          final double boxMaxHeight = isTab ? screenHeight * 0.45 : screenHeight * 0.32;
+          final double mainFont = isTab ? 22 : 16;
+          final double subFont = isTab ? 18 : 14;
+          final double buttonFont = isTab ? 18 : 15.5;
+          final double iconSize = isTab ? 36 : 22;
+          final double uploadIconSize = isTab ? 38 : 26;
+          final double uploadFont = isTab ? 28 : 22;
+          final double listTileFont = isTab ? 20 : 14.5;
+          final double listTileIcon = isTab ? 30 : 22;
+          final double closeIcon = isTab ? 28 : 20;
+          final double gridThumb = isTab ? 120 : 70;
+          final double cameraButtonSize = isTab ? 120 : 96;
+
+          return Stack(
+            children: [
+              Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: screenWidth * (isTab ? 0.12 : 0.05),
+                  vertical: screenHeight * (isTab ? 0.07 : 0.04),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    GestureDetector(
+                      onTap: () {
+                        if (selectedTool == null) {
+                          showDialog(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              title: Text("Tool Not Selected", style: TextStyle(fontSize: mainFont)),
+                              content: Text(
+                                "Please select a tool before choosing a file.",
+                                style: TextStyle(fontSize: subFont),
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: Text("OK", style: TextStyle(color: Color(0xFFFF6F00), fontSize: subFont)),
+                                )
+                              ],
+                            ),
+                          );
+                          return;
+                        }
+                        _onToolSelect(); 
+                      },
+                      child: Container(
+                        width: double.infinity,
+                        margin: EdgeInsets.only(right: screenWidth * 0.02),
+                        padding: EdgeInsets.symmetric(vertical: screenHeight * (isTab ? 0.05 : 0.032)),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: gradientColors,
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
                           ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context),
-                              child: Text("OK", style: TextStyle(color: Color(0xFFFF6F00))), // Bright Orange
-                            )
+                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: [
+                            BoxShadow(
+                              color: isDark ? kDarkTeal.withOpacity(0.25) : Colors.blue.withOpacity(0.35),
+                              blurRadius: 16,
+                              spreadRadius: 2,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                          border: Border.all(
+                            color: Colors.white.withOpacity(isDark ? 0.08 : 0.1),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.upload_file_rounded, color: Colors.white, size: uploadIconSize),
+                            SizedBox(width: 10),
+                            Text(
+                              "Select File",
+                              style: TextStyle(
+                                fontSize: uploadFont,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
                           ],
                         ),
-                      );
-                      return;
-                    }
-                    _onToolSelect(); 
-                  },
-                  child: Container(
-                    width: double.infinity,
-                    margin: const EdgeInsets.only(right: 10),
-                    padding: const EdgeInsets.symmetric(vertical: 26),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: gradientColors,
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(14),
-                      boxShadow: [
-                        BoxShadow(
-                          color: isDark ? kDarkTeal.withOpacity(0.25) : Colors.blue.withOpacity(0.35),
-                          blurRadius: 16,
-                          spreadRadius: 2,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
-                      border: Border.all(
-                        color: Colors.white.withOpacity(isDark ? 0.08 : 0.1),
-                        width: 1,
                       ),
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: const [
-                        Icon(Icons.upload_file_rounded, color: Colors.white, size: 26),
-                        SizedBox(width: 10),
-                        Text(
-                          "Select File",
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                            letterSpacing: 0.8,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
 
-                if (isLoading)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 24),
-                    child: Column(
-                      children: [
-                        Text(
-                          "Selected Files",
+                    if (isLoading)
+                      Padding(
+                        padding: EdgeInsets.only(top: screenHeight * (isTab ? 0.05 : 0.03)),
+                        child: Column(
+                          children: [
+                            Text(
+                              "Selected Files",
+                              style: TextStyle(
+                                fontSize: mainFont,
+                                fontWeight: FontWeight.w600,
+                                color: isDark ? kDarkSecondaryText : Colors.grey.shade700,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                            SizedBox(height: screenHeight * (isTab ? 0.03 : 0.018)),
+                            SizedBox(
+                              width: isTab ? 36 : 22,
+                              height: isTab ? 36 : 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(isDark ? kDarkAccent : Color(0xFF1976D2)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+
+                    else if (selectedFiles.isEmpty)
+                      Padding(
+                        padding: EdgeInsets.only(top: screenHeight * (isTab ? 0.03 : 0.02)),
+                        child: Text(
+                          "Upload a file to begin. Supported: PDF, JPG, PNG.",
                           style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: isDark ? kDarkSecondaryText : Colors.grey.shade700,
+                            fontSize: subFont,
+                            fontWeight: FontWeight.w500,
+                            color: secondaryTextColor,
                             letterSpacing: 0.3,
                           ),
+                          textAlign: TextAlign.center,
                         ),
-                        const SizedBox(height: 14),
-                        SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(isDark ? kDarkAccent : Color(0xFF1976D2)), // deep blue
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
+                      )
 
-                else if (selectedFiles.isEmpty)
-                  Text(
-                    "Upload a file to begin. Supported: PDF, JPG, PNG.",
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: secondaryTextColor,
-                      letterSpacing: 0.3,
-                    ),
-                    textAlign: TextAlign.center,
-                  )
-
-                else
-                  Padding(
-                    padding: const EdgeInsets.only(top: 24.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    else
+                      Padding(
+                        padding: EdgeInsets.only(top: screenHeight * (isTab ? 0.04 : 0.03)),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              "Selected Files",
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  "Selected Files",
+                                  style: TextStyle(fontSize: mainFont, fontWeight: FontWeight.w600),
+                                ),
+                                if (selectedFiles.isNotEmpty)
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: cardColor,
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(color: borderColor, width: 1),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        GestureDetector(
+                                          onTap: () => ref.read(viewModeProvider.notifier).state = ViewMode.list,
+                                          child: Container(
+                                            padding: EdgeInsets.symmetric(horizontal: isTab ? 18 : 12, vertical: isTab ? 10 : 6),
+                                            decoration: BoxDecoration(
+                                              color: viewMode == ViewMode.list 
+                                                ? (isDark ? kDarkAccent : Colors.blueAccent)
+                                                : Colors.transparent,
+                                              borderRadius: BorderRadius.circular(18),
+                                            ),
+                                            child: Text(
+                                              "List",
+                                              style: TextStyle(
+                                                fontSize: isTab ? 16 : 12,
+                                                fontWeight: FontWeight.w600,
+                                                color: viewMode == ViewMode.list 
+                                                  ? Colors.white 
+                                                  : textColor,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        GestureDetector(
+                                          onTap: () => ref.read(viewModeProvider.notifier).state = ViewMode.grid,
+                                          child: Container(
+                                            padding: EdgeInsets.symmetric(horizontal: isTab ? 18 : 12, vertical: isTab ? 10 : 6),
+                                            decoration: BoxDecoration(
+                                              color: viewMode == ViewMode.grid 
+                                                ? (isDark ? kDarkAccent : Colors.blueAccent)
+                                                : Colors.transparent,
+                                              borderRadius: BorderRadius.circular(18),
+                                            ),
+                                            child: Text(
+                                              "Grid",
+                                              style: TextStyle(
+                                                fontSize: isTab ? 16 : 12,
+                                                fontWeight: FontWeight.w600,
+                                                color: viewMode == ViewMode.grid 
+                                                  ? Colors.white 
+                                                  : textColor,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                              ],
                             ),
-                            if (selectedFiles.isNotEmpty)
+                            SizedBox(height: isTab ? 10 : 5),
+                            if (viewMode == ViewMode.list)
                               Container(
                                 decoration: BoxDecoration(
                                   color: cardColor,
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(color: borderColor, width: 1),
+                                  border: Border.all(
+                                    color: borderColor,
+                                    width: 1.2,
+                                  ),
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
+                                padding: const EdgeInsets.symmetric(vertical: 4),
+                                constraints: BoxConstraints(
+                                  maxHeight: screenHeight * (isTab ? 0.45 : 0.28),
+                                ),
+                                child: Scrollbar(
+                                  thumbVisibility: true,
+                                  radius: const Radius.circular(8),
+                                  thickness: isTab ? 6 : 3,
+                                  child: ReorderableListView.builder(
+                                    shrinkWrap: true,
+                                    itemCount: selectedFiles.length,
+                                    onReorder: (oldIndex, newIndex) {
+                                      filesNotifier.reorder(oldIndex, newIndex);
+                                    },
+                                    padding: EdgeInsets.zero,
+                                    buildDefaultDragHandles: true,
+                                    itemBuilder: (context, index) {
+                                      final file = selectedFiles[index];
+
+                                      IconData iconData;
+                                      Color iconColor;
+
+                                      if (file.extension == 'pdf') {
+                                        iconData = Icons.picture_as_pdf_rounded;
+                                        iconColor = isDark ? kDarkAccent : Colors.blueAccent;
+                                      } else {
+                                        iconData = Icons.image_outlined;
+                                        iconColor = isDark ? Colors.tealAccent : Colors.teal;
+                                      }
+
+                                      return ListTile(
+                                        key: ValueKey(file.path),
+                                        dense: !isTab,
+                                        visualDensity: isTab ? VisualDensity(vertical: 0) : const VisualDensity(vertical: -4),
+                                        contentPadding: EdgeInsets.symmetric(horizontal: isTab ? 24 : 12),
+                                        leading: Icon(iconData, color: iconColor, size: listTileIcon),
+                                        title: Text(
+                                          file.name,
+                                          style: TextStyle(fontSize: listTileFont, color: textColor),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        trailing: GestureDetector(
+                                          onTap: () {
+                                            filesNotifier.removeFileAt(index);
+                                          },
+                                          child: Icon(Icons.close_rounded, color: Colors.redAccent, size: closeIcon),
+                                        ),
+                                        onTap: () async {
+                                          final filePath = file.path!;
+                                          ref.read(selectedFilePathProvider.notifier).state = filePath;
+
+                                          if (file.extension == 'pdf') {
+                                            await OpenFilex.open(filePath);
+                                          } else if ([
+                                            'jpg', 'jpeg', 'png', 'gif'
+                                          ].contains(file.extension!.toLowerCase())) {
+                                            await OpenFilex.open(filePath);
+                                          } else {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              const SnackBar(content: Text("Unsupported file type.")),
+                                            );
+                                          }
+                                        },
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+
+                    SizedBox(height: screenHeight * (isTab ? 0.025 : 0.012)),
+                    if (selectedFiles.isNotEmpty)
+                      Align(
+                        alignment: Alignment.center,
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 300),
+                          width: isProcessing ? (isTab ? 220 : 160) : (isTab ? 180 : 140),
+                          height: isTab ? 60 : 46,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: gradientColors,
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(30),
+                            boxShadow: [
+                              BoxShadow(
+                                color: (isDark ? kDarkAccent : Colors.blueAccent).withOpacity(0.3),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(30),
+                              onTap: _processFiles,
+                              child: Center(
                                 child: Row(
-                                  mainAxisSize: MainAxisSize.min,
+                                  mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    GestureDetector(
-                                      onTap: () => ref.read(viewModeProvider.notifier).state = ViewMode.list,
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                        decoration: BoxDecoration(
-                                          color: viewMode == ViewMode.list 
-                                            ? (isDark ? kDarkAccent : Colors.blueAccent)
-                                            : Colors.transparent,
-                                          borderRadius: BorderRadius.circular(18),
-                                        ),
-                                        child: Text(
-                                          "List",
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                            color: viewMode == ViewMode.list 
-                                              ? Colors.white 
-                                              : textColor,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    GestureDetector(
-                                      onTap: () => ref.read(viewModeProvider.notifier).state = ViewMode.grid,
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                        decoration: BoxDecoration(
-                                          color: viewMode == ViewMode.grid 
-                                            ? (isDark ? kDarkAccent : Colors.blueAccent)
-                                            : Colors.transparent,
-                                          borderRadius: BorderRadius.circular(18),
-                                        ),
-                                        child: Text(
-                                          "Grid",
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                            color: viewMode == ViewMode.grid 
-                                              ? Colors.white 
-                                              : textColor,
-                                          ),
-                                        ),
+                                    Icon(Icons.play_arrow_rounded, size: isTab ? 30 : 22, color: Colors.white),
+                                    SizedBox(width: isTab ? 14 : 8),
+                                    Text(
+                                      "Process",
+                                      style: TextStyle(
+                                        fontSize: buttonFont,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white,
+                                        letterSpacing: 0.4,
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
-                          ],
-                        ),
-                        const SizedBox(height: 5),
-                        if (viewMode == ViewMode.list)
-                          Container(
-                            decoration: BoxDecoration(
-                              color: cardColor,
-                              border: Border.all(
-                                color: borderColor,
-                                width: 1.2,
-                              ),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            padding: const EdgeInsets.symmetric(vertical: 4),
-                            constraints: const BoxConstraints(
-                              maxHeight: 210,
-                            ),
-                            child: Scrollbar(
-                              thumbVisibility: true,
-                              radius: const Radius.circular(8),
-                              thickness: 3,
-                              child: ReorderableListView.builder(
-                                shrinkWrap: true,
-                                itemCount: selectedFiles.length,
-                                onReorder: (oldIndex, newIndex) {
-                                  filesNotifier.reorder(oldIndex, newIndex);
-                                },
-                                padding: EdgeInsets.zero,
-                                buildDefaultDragHandles: true,
-                                itemBuilder: (context, index) {
-                                  final file = selectedFiles[index];
-
-                                  IconData iconData;
-                                  Color iconColor;
-
-                                  if (file.extension == 'pdf') {
-                                    iconData = Icons.picture_as_pdf_rounded;
-                                    iconColor = isDark ? kDarkAccent : Colors.blueAccent;
-                                  } else {
-                                    iconData = Icons.image_outlined;
-                                    iconColor = isDark ? Colors.tealAccent : Colors.teal;
-                                  }
-
-                                  return ListTile(
-                                    key: ValueKey(file.path),
-                                    dense: true,
-                                    visualDensity: const VisualDensity(vertical: -4),
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                                    leading: Icon(iconData, color: iconColor, size: 22),
-                                    title: Text(
-                                      file.name,
-                                      style: TextStyle(fontSize: 14.5, color: textColor),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    trailing: GestureDetector(
-                                      onTap: () {
-                                        filesNotifier.removeFileAt(index);
-                                      },
-                                      child: const Icon(Icons.close_rounded, color: Colors.redAccent, size: 20),
-                                    ),
-                                    onTap: () async {
-                                      final filePath = file.path!;
-                                      ref.read(selectedFilePathProvider.notifier).state = filePath;
-
-                                      if (file.extension == 'pdf') {
-                                        await OpenFilex.open(filePath);
-                                      } else if (['jpg', 'jpeg', 'png', 'gif'].contains(file.extension!.toLowerCase())) {
-                                        await OpenFilex.open(filePath);
-                                      } else {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          const SnackBar(content: Text("Unsupported file type.")),
-                                        );
-                                      }
-                                    },
-                                  );
-                                },
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-
-                const SizedBox(height: 10),
-                if (selectedFiles.isNotEmpty)
-                  Align(
-                    alignment: Alignment.center,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      width: isProcessing ? 160 : 140,
-                      height: 46,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: gradientColors,
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(30),
-                        boxShadow: [
-                          BoxShadow(
-                            color: (isDark ? kDarkAccent : Colors.blueAccent).withOpacity(0.3),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(30),
-                          onTap: _processFiles,
-                          child: Center(
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: const [
-                                Icon(Icons.play_arrow_rounded, size: 22, color: Colors.white),
-                                SizedBox(width: 8),
-                                Text(
-                                  "Process",
-                                  style: TextStyle(
-                                    fontSize: 15.5,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.white,
-                                    letterSpacing: 0.4,
-                                  ),
-                                ),
-                              ],
                             ),
                           ),
                         ),
                       ),
+
+                    SizedBox(height: screenHeight * (isTab ? 0.04 : 0.025)),
+
+                    CustomDropdown(
+                      selectedTool: selectedTool,
+                      onChanged: (val) {
+                        ref.read(selectedToolProvider.notifier).state = val;
+                      },
+                      isDark: isDark,
+                      textColor: textColor,
+                      fontSize: isTab ? 20 : 16,
+                      iconSize: isTab ? 32 : 22,
+                      padding: EdgeInsets.symmetric(horizontal: isTab ? 24 : 12, vertical: isTab ? 16 : 10),
                     ),
-                  ),
 
-                const SizedBox(height: 25),
-
-                CustomDropdown(
-                  selectedTool: selectedTool,
-                  onChanged: (val) {
-                    ref.read(selectedToolProvider.notifier).state = val;
-                  },
-                  isDark: isDark,
-                  textColor: textColor,
-                ),
-
-                const SizedBox(height: 36),
-                
-                const SizedBox(height: 25),
-                Flexible(
-                  child: Align(
-                    alignment: Alignment.topCenter,
-                    child: selectedFiles.isEmpty
-                        ? Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-                            padding: const EdgeInsets.all(40),
-                            decoration: BoxDecoration(
-                              color: cardColor,
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: borderColor),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: isDark ? Colors.black26 : Colors.black12,
-                                  blurRadius: 8,
-                                  offset: Offset(0, 4),
+                    SizedBox(height: screenHeight * (isTab ? 0.07 : 0.045)),
+                    // Responsive box and camera area
+                    Expanded(
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        child: selectedFiles.isEmpty
+                            ? Container(
+                                margin: EdgeInsets.symmetric(horizontal: screenWidth * (isTab ? 0.08 : 0.04)),
+                                padding: EdgeInsets.all(boxPadding),
+                                constraints: BoxConstraints(
+                                  minHeight: isTab ? screenHeight * 0.35 : boxMinHeight,
+                                  maxHeight: isTab ? screenHeight * 0.65 : boxMaxHeight * 1.5,
+                                  minWidth: screenWidth * (isTab ? 0.7 : 0.6),
+                                  maxWidth: screenWidth * (isTab ? 0.98 : 0.95),
                                 ),
-                              ],
-                            ),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                  Image.asset(
-                                    'assets/2.png',
-                                    height: 150,
-                                    width: 150,
-                                    fit: BoxFit.contain,
-                                  ),
-                                const SizedBox(height: 12),
-                                Text(
-                                  "Start by choosing a tool or uploading a file.",
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w400,
-                                    color: textColor.withOpacity(0.55),
-                                    letterSpacing: 0.2,
-                                  ),
+                                decoration: BoxDecoration(
+                                  color: cardColor,
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: borderColor),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: isDark ? Colors.black26 : Colors.black12,
+                                      blurRadius: 8,
+                                      offset: Offset(0, 4),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(height: 8),
-                              ],
-                            ),
-                          )
-                        : const SizedBox(height:10)
-                  ),
-                ),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    Flexible(
+                                      flex: 2,
+                                      child: FittedBox(
+                                        fit: BoxFit.contain,
+                                        child: Image.asset(
+                                          'assets/2.png',
+                                          height: boxImageSize,
+                                          width: boxImageSize,
+                                        ),
+                                      ),
+                                    ),
+                                    SizedBox(height: screenHeight * (isTab ? 0.018 : 0.012)),
+                                    Flexible(
+                                      flex: 1,
+                                      child: Padding(
+                                        padding: EdgeInsets.symmetric(horizontal: isTab ? 32 : 12),
+                                        child: Text(
+                                          "Start by choosing a tool or uploading a file.",
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            fontSize: subFont,
+                                            fontWeight: FontWeight.w400,
+                                            color: textColor.withOpacity(0.55),
+                                            letterSpacing: 0.2,
+                                          ),
+                                          maxLines: 3,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ),
+                                    SizedBox(height: screenHeight * (isTab ? 0.014 : 0.01)),
+                                  ],
+                                ),
+                              )
+                            : SizedBox(height: isTab ? 20 : 10),
+                      ),
+                    ),
 
-                const SizedBox(height: 20),
+                    SizedBox(height: screenHeight * (isTab ? 0.018 : 0.01)),
 
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 30),
-                  child: Align(
-                    alignment: Alignment.bottomCenter,
-                    child: CameraButton(),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          
-          // Grid View Overlay
-          if (viewMode == ViewMode.grid && selectedFiles.isNotEmpty)
-            Positioned.fill(
-              child: Container(
-                color: Colors.black.withOpacity(0.3),
-                child: Center(
-                  child: GridViewOverlay(
-                    files: selectedFiles,
-                    onRemoveFile: (index) => filesNotifier.removeFileAt(index),
-                    onReorder: (oldIndex, newIndex) => filesNotifier.reorder(oldIndex, newIndex),
-                    isDark: isDark,
-                    textColor: textColor,
-                    cardColor: cardColor,
-                    borderColor: borderColor,
-                    onClose: () {
-                      // Switch back to list view when grid is closed
-                      ref.read(viewModeProvider.notifier).state = ViewMode.list;
-                    },
-                  ),
+                    Padding(
+                      padding: EdgeInsets.only(bottom: screenHeight * (isTab ? 0.05 : 0.03)),
+                      child: Align(
+                        alignment: Alignment.bottomCenter,
+                        child: SizedBox(
+                          width: cameraButtonSize,
+                          height: cameraButtonSize,
+                          child: CameraButton(
+                            iconSize: isTab ? 56 : 40,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
-        ],
+              // Grid View Overlay
+              if (viewMode == ViewMode.grid && selectedFiles.isNotEmpty)
+                Positioned.fill(
+                  child: Container(
+                    color: Colors.black.withOpacity(0.3),
+                    child: Center(
+                      child: GridViewOverlay(
+                        files: selectedFiles,
+                        onRemoveFile: (index) => filesNotifier.removeFileAt(index),
+                        onReorder: (oldIndex, newIndex) => filesNotifier.reorder(oldIndex, newIndex),
+                        isDark: isDark,
+                        textColor: textColor,
+                        cardColor: cardColor,
+                        borderColor: borderColor,
+                        onClose: () {
+                          ref.read(viewModeProvider.notifier).state = ViewMode.list;
+                        },
+                        thumbSize: gridThumb,
+                        fontSize: listTileFont,
+                        iconSize: listTileIcon,
+                        closeIconSize: closeIcon,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
       ),
     );
   }
