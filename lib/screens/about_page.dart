@@ -200,7 +200,7 @@ class AboutPage extends StatelessWidget {
             leading: const Icon(Icons.star_rate_outlined, color: Colors.amber),
             title: Text("Rate Us", style: TextStyle(fontSize: 14.5, color: textColor)),
             trailing: const Icon(Icons.arrow_forward_ios, size: 14),
-            onTap: () => _launchURL("https://play.google.com/store/apps/details?id=com.bluepdf.app"),
+            onTap: () => _launchURL("https://play.google.com/store/apps/details?id=com.bluepdf.blue_pdf"),
           ),
         ],
       ),
