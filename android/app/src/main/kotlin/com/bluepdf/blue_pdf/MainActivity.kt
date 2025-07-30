@@ -24,18 +24,37 @@ import java.io.FileOutputStream
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "bluepdf.native/Pdf_utility"
 
+    // Compression levels: 1=Low, 2=Medium, 3=High
+    data class CompressionSettings(
+        val dpi: Float,
+        val jpegQuality: Int,
+        val maxWidth: Int,
+        val maxHeight: Int,
+        val bitmapConfig: Bitmap.Config
+    )
+
+    private fun getCompressionSettings(compression: Int): CompressionSettings {
+        return when (compression) {
+            1 -> CompressionSettings(72f, 60, 800, 1200, Bitmap.Config.RGB_565)      // Low
+            2 -> CompressionSettings(150f, 80, 1200, 1800, Bitmap.Config.ARGB_8888)  // Medium
+            3 -> CompressionSettings(300f, 95, 2480, 3508, Bitmap.Config.ARGB_8888)  // High (A4 at 300dpi)
+            else -> CompressionSettings(150f, 80, 1200, 1800, Bitmap.Config.ARGB_8888) // Default Medium
+        }
+    }
+
     override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        PDFBoxResourceLoader.init(applicationContext) // ✅ Initialize PDFBox-Android
+        PDFBoxResourceLoader.init(applicationContext)
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "generatePdfFromImages" -> {
                     val paths = call.argument<List<String>>("paths")
+                    val compression = call.argument<Int>("compression") ?: 2 // Default medium
                     if (paths != null) {
                         CoroutineScope(Dispatchers.Default).launch {
                             try {
-                                val pdfPath = generateCompressedPdfParallel(paths)
+                                val pdfPath = generateOptimizedPdf(paths, compression)
                                 withContext(Dispatchers.Main) {
                                     result.success(pdfPath)
                                 }
@@ -52,19 +71,18 @@ class MainActivity : FlutterActivity() {
 
                 "mergePdfs" -> {
                     val paths = call.argument<List<String>>("paths")
+                    val compression = call.argument<Int>("compression") ?: 2
                     if (paths.isNullOrEmpty()) {
                         result.error("NO_PATHS", "No PDF paths provided for merging", null)
                         return@setMethodCallHandler
                     }
                     
-                    // Quick validation before starting heavy work
                     val validPaths = paths.filter { File(it).exists() }
                     if (validPaths.isEmpty()) {
                         result.error("NO_VALID_PATHS", "No valid PDF files found", null)
                         return@setMethodCallHandler
                     }
                     
-                    // Skip merge if only one file
                     if (validPaths.size == 1) {
                         result.success(validPaths[0])
                         return@setMethodCallHandler
@@ -72,7 +90,7 @@ class MainActivity : FlutterActivity() {
                     
                     CoroutineScope(Dispatchers.IO).launch {
                         try {
-                            val mergedPdfPath = mergePdfsNative(validPaths)
+                            val mergedPdfPath = mergePdfsNative(validPaths, compression)
                             withContext(Dispatchers.Main) {
                                 result.success(mergedPdfPath)
                             }
@@ -87,10 +105,11 @@ class MainActivity : FlutterActivity() {
                 "encryptPdf" -> {
                     val path = call.argument<String>("path")
                     val password = call.argument<String>("password")
+                    val compression = call.argument<Int>("compression") ?: 2
                     if (path != null && password != null) {
                         CoroutineScope(Dispatchers.IO).launch {
                             try {
-                                val encryptedPath = encryptPdfNative(path, password)
+                                val encryptedPath = encryptPdfNative(path, password, compression)
                                 withContext(Dispatchers.Main) {
                                     result.success(encryptedPath)
                                 }
@@ -109,10 +128,11 @@ class MainActivity : FlutterActivity() {
                     val path = call.argument<String>("path")
                     val startPage = call.argument<Int>("startPage")
                     val endPage = call.argument<Int>("endPage")
+                    val compression = call.argument<Int>("compression") ?: 2
                     if (path != null && startPage != null && endPage != null) {
                         CoroutineScope(Dispatchers.IO).launch {
                             try {
-                                val splitPath = splitPdfNative(path, startPage, endPage)
+                                val splitPath = splitPdfNative(path, startPage, endPage, compression)
                                 withContext(Dispatchers.Main) {
                                     result.success(splitPath)
                                 }
@@ -126,12 +146,14 @@ class MainActivity : FlutterActivity() {
                         result.error("MISSING_ARGS", "Missing path or page range", null)
                     }
                 }
+
                 "reorderPdf" -> {
                     val path = call.argument<String>("path")
+                    val compression = call.argument<Int>("compression") ?: 2
                     if (path != null) {
                         CoroutineScope(Dispatchers.IO).launch {
                             try {
-                                val imagePaths = reorderPdfNative(path)
+                                val imagePaths = reorderPdfNative(path, compression)
                                 withContext(Dispatchers.Main) {
                                     result.success(imagePaths)
                                 }
@@ -151,100 +173,205 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    // --- IMAGE TO COMPRESSED PDF ---
-    private fun calculateInSampleSize(options: BitmapFactory.Options, reqWidth: Int, reqHeight: Int): Int {
+    // --- OPTIMIZED IMAGE TO PDF WITH QUALITY CONTROL ---
+    private suspend fun generateOptimizedPdf(paths: List<String>, compression: Int): String = withContext(Dispatchers.IO) {
+        val settings = getCompressionSettings(compression)
+        val document = PdfDocument()
+
+        try {
+            val processedImages = paths.mapIndexed { index, path ->
+                async(Dispatchers.Default) {
+                    val file = File(path)
+                    if (!file.exists()) return@async null
+
+                    // Get original dimensions
+                    val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    BitmapFactory.decodeFile(path, options)
+                    
+                    if (options.outWidth <= 0 || options.outHeight <= 0) return@async null
+
+                    // Calculate optimal size maintaining aspect ratio
+                    val aspectRatio = options.outHeight.toFloat() / options.outWidth
+                    val (targetWidth, targetHeight) = if (options.outWidth > options.outHeight) {
+                        // Landscape
+                        val width = minOf(settings.maxWidth, options.outWidth)
+                        Pair(width, (width * aspectRatio).toInt())
+                    } else {
+                        // Portrait
+                        val height = minOf(settings.maxHeight, options.outHeight)
+                        Pair((height / aspectRatio).toInt(), height)
+                    }
+
+                    // Smart sampling for better quality
+                    val sampleSize = calculateOptimalSampleSize(options, targetWidth, targetHeight)
+                    
+                    val loadOptions = BitmapFactory.Options().apply {
+                        inSampleSize = sampleSize
+                        inPreferredConfig = settings.bitmapConfig
+                        inDither = false
+                        inScaled = false
+                    }
+
+                    val bitmap = BitmapFactory.decodeFile(path, loadOptions) ?: return@async null
+                    
+                    // High-quality scaling if needed
+                    val finalBitmap = if (bitmap.width != targetWidth || bitmap.height != targetHeight) {
+                        Bitmap.createScaledBitmap(bitmap, targetWidth, targetHeight, true).also {
+                            if (it != bitmap) bitmap.recycle()
+                        }
+                    } else bitmap
+
+                    Triple(index, finalBitmap, Pair(targetWidth, targetHeight))
+                }
+            }.awaitAll().filterNotNull().sortedBy { it.first }
+
+            // Create PDF pages
+            processedImages.forEach { (index, bitmap, dimensions) ->
+                val pageInfo = PdfDocument.PageInfo.Builder(dimensions.first, dimensions.second, index + 1).create()
+                val page = document.startPage(pageInfo)
+                page.canvas.drawBitmap(bitmap, 0f, 0f, null)
+                document.finishPage(page)
+                bitmap.recycle()
+            }
+
+            val outputFile = File(context.cacheDir, "optimized_pdf_${System.currentTimeMillis()}.pdf")
+            FileOutputStream(outputFile).use { document.writeTo(it) }
+            
+            return@withContext outputFile.absolutePath
+        } finally {
+            document.close()
+        }
+    }
+
+    private fun calculateOptimalSampleSize(options: BitmapFactory.Options, reqWidth: Int, reqHeight: Int): Int {
         val height = options.outHeight
         val width = options.outWidth
         var inSampleSize = 1
+
         if (height > reqHeight || width > reqWidth) {
             val halfHeight = height / 2
             val halfWidth = width / 2
-            while (halfHeight / inSampleSize >= reqHeight && halfWidth / inSampleSize >= reqWidth) {
+            
+            // Calculate the largest inSampleSize value that is a power of 2 and keeps both
+            // height and width larger than the requested height and width.
+            while ((halfHeight / inSampleSize) >= reqHeight && (halfWidth / inSampleSize) >= reqWidth) {
                 inSampleSize *= 2
             }
         }
         return inSampleSize
     }
 
-    private suspend fun generateCompressedPdfParallel(paths: List<String>): String = withContext(Dispatchers.IO) {
-        val document = PdfDocument()
-        val targetWidth = 595
-
-        val scaledBitmaps = paths.mapIndexed { index, path ->
-            async(Dispatchers.Default) {
-                val file = File(path)
-                if (!file.exists()) return@async null
-
-                val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                BitmapFactory.decodeFile(path, options)
-
-                val aspectRatio = options.outHeight.toFloat() / options.outWidth
-                val targetHeight = (targetWidth * aspectRatio).toInt()
-
-                val sampleOptions = BitmapFactory.Options().apply {
-                    inSampleSize = calculateInSampleSize(options, targetWidth, targetHeight)
-                    inPreferredConfig = Bitmap.Config.RGB_565
-                }
-
-                val bitmap = BitmapFactory.decodeFile(path, sampleOptions) ?: return@async null
-                val scaled = Bitmap.createScaledBitmap(bitmap, targetWidth, targetHeight, false)
-                if (bitmap != scaled) bitmap.recycle()
-
-                Triple(index, scaled, targetHeight)
+    // --- OPTIMIZED PDF TO IMAGES WITH QUALITY CONTROL ---
+    private suspend fun reorderPdfNative(path: String, compression: Int): List<String> = withContext(Dispatchers.IO) {
+        val inputFile = File(path)
+        val settings = getCompressionSettings(compression)
+        
+        val memorySettings = if (inputFile.length() > 50 * 1024 * 1024) {
+            MemoryUsageSetting.setupTempFileOnly()
+        } else {
+            MemoryUsageSetting.setupMainMemoryOnly()
+        }
+        
+        PDDocument.load(inputFile, memorySettings).use { document ->
+            val renderer = com.tom_roush.pdfbox.rendering.PDFRenderer(document)
+            val pageCount = document.numberOfPages
+            
+            // Batch processing for memory efficiency
+            val batchSize = when {
+                pageCount > 100 -> 5
+                pageCount > 50 -> 8
+                else -> 12
             }
-        }.awaitAll().filterNotNull().sortedBy { it.first }
-
-        for ((index, scaledBitmap, targetHeight) in scaledBitmaps) {
-            val pageInfo = PdfDocument.PageInfo.Builder(targetWidth, targetHeight, index + 1).create()
-            val page = document.startPage(pageInfo)
-            page.canvas.drawBitmap(scaledBitmap, 0f, 0f, null)
-            document.finishPage(page)
-            scaledBitmap.recycle()
+            
+            val allResults = mutableListOf<Pair<Int, String>>()
+            
+            // Process in batches
+            (0 until pageCount).chunked(batchSize).forEach { batch ->
+                val batchResults = batch.map { pageIndex ->
+                    async(Dispatchers.Default) {
+                        try {
+                            // Render at high quality
+                            val bitmap = renderer.renderImageWithDPI(
+                                pageIndex, 
+                                settings.dpi,
+                                com.tom_roush.pdfbox.rendering.ImageType.RGB
+                            )
+                            
+                            // Optimize bitmap size if needed
+                            val optimizedBitmap = if (bitmap.width > settings.maxWidth || bitmap.height > settings.maxHeight) {
+                                val aspectRatio = bitmap.height.toFloat() / bitmap.width
+                                val (newWidth, newHeight) = if (bitmap.width > bitmap.height) {
+                                    val width = minOf(settings.maxWidth, bitmap.width)
+                                    Pair(width, (width * aspectRatio).toInt())
+                                } else {
+                                    val height = minOf(settings.maxHeight, bitmap.height)
+                                    Pair((height / aspectRatio).toInt(), height)
+                                }
+                                
+                                Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true).also {
+                                    bitmap.recycle()
+                                }
+                            } else bitmap
+                            
+                            val imageFile = File(context.cacheDir, "page_${pageIndex + 1}_${System.nanoTime()}.jpg")
+                            
+                            FileOutputStream(imageFile).use { out ->
+                                optimizedBitmap.compress(Bitmap.CompressFormat.JPEG, settings.jpegQuality, out)
+                            }
+                            
+                            optimizedBitmap.recycle()
+                            Pair(pageIndex, imageFile.absolutePath)
+                            
+                        } catch (e: Exception) {
+                            Pair(pageIndex, "")
+                        }
+                    }
+                }.awaitAll().filter { it.second.isNotEmpty() }
+                
+                allResults.addAll(batchResults)
+            }
+            
+            return@withContext allResults.sortedBy { it.first }.map { it.second }
         }
-
-        val outputFile = File(context.cacheDir, "temp_pdf_${System.currentTimeMillis()}.pdf")
-        FileOutputStream(outputFile).use { outputStream ->
-            document.writeTo(outputStream)
-        }
-        document.close()
-
-        return@withContext outputFile.absolutePath
     }
 
-    // --- PDF MERGE FUNCTION ---
-    private suspend fun mergePdfsNative(paths: List<String>): String = withContext(Dispatchers.IO) {
+    // --- UPDATED MERGE WITH COMPRESSION ---
+    private suspend fun mergePdfsNative(paths: List<String>, compression: Int): String = withContext(Dispatchers.IO) {
         val outputFile = File(context.cacheDir, "merged_${System.currentTimeMillis()}.pdf")
         val merger = PDFMergerUtility()
         merger.destinationFileName = outputFile.absolutePath
         
-        // SPEED BOOST: Use optimized merge mode (closes documents early)
-        merger.setDocumentMergeMode(PDFMergerUtility.DocumentMergeMode.OPTIMIZE_RESOURCES_MODE)
-        
-        // Add all sources first (faster than adding one by one)
-        paths.forEach { path ->
-            merger.addSource(File(path))
+        // Optimize based on compression level
+        when (compression) {
+            1 -> merger.setDocumentMergeMode(PDFMergerUtility.DocumentMergeMode.OPTIMIZE_RESOURCES_MODE)
+            2, 3 -> merger.setDocumentMergeMode(PDFMergerUtility.DocumentMergeMode.PDFBOX_LEGACY_MODE)
         }
         
-        // Choose memory setting based on number of files
-        val memorySettings = if (paths.size > 5) {
-            // Use temp files for many PDFs to avoid memory issues
+        paths.forEach { merger.addSource(File(it)) }
+        
+        val memorySettings = if (paths.size > 5 || compression == 1) {
             MemoryUsageSetting.setupTempFileOnly()
         } else {
-            // Use main memory for few PDFs (faster)
             MemoryUsageSetting.setupMainMemoryOnly()
         }
         
         merger.mergeDocuments(memorySettings)
-        
         return@withContext outputFile.absolutePath
     }
 
-    private suspend fun encryptPdfNative(path: String, password: String): String = withContext(Dispatchers.IO) {
+    // --- UPDATED ENCRYPT WITH COMPRESSION ---
+    private suspend fun encryptPdfNative(path: String, password: String, compression: Int): String = withContext(Dispatchers.IO) {
         val inputFile = File(path)
         val outputFile = File(context.cacheDir, "encrypted_pdf_${System.currentTimeMillis()}.pdf")
 
-        PDDocument.load(inputFile).use { document ->
-            val keyLength = 128 // or 256 if you want stronger encryption
+        val memorySettings = if (compression == 1) {
+            MemoryUsageSetting.setupTempFileOnly()
+        } else {
+            MemoryUsageSetting.setupMainMemoryOnly()
+        }
+
+        PDDocument.load(inputFile, memorySettings).use { document ->
+            val keyLength = if (compression == 3) 256 else 128
             val accessPermission = AccessPermission()
             val protectionPolicy = StandardProtectionPolicy(password, password, accessPermission)
             protectionPolicy.encryptionKeyLength = keyLength
@@ -257,13 +384,12 @@ class MainActivity : FlutterActivity() {
         return@withContext outputFile.absolutePath
     }
 
-    // --- OPTIMIZED SPLIT PDF FUNCTION ---
-    private suspend fun splitPdfNative(path: String, startPage: Int, endPage: Int): String = withContext(Dispatchers.IO) {
+    // --- UPDATED SPLIT WITH COMPRESSION ---
+    private suspend fun splitPdfNative(path: String, startPage: Int, endPage: Int, compression: Int): String = withContext(Dispatchers.IO) {
         val inputFile = File(path)
         val outputFile = File(context.cacheDir, "split_${System.currentTimeMillis()}.pdf")
         
-        // Use memory-optimized loading for large files
-        val memorySettings = if (inputFile.length() > 50 * 1024 * 1024) { // > 50MB
+        val memorySettings = if (inputFile.length() > 50 * 1024 * 1024 || compression == 1) {
             MemoryUsageSetting.setupTempFileOnly()
         } else {
             MemoryUsageSetting.setupMainMemoryOnly()
@@ -272,15 +398,12 @@ class MainActivity : FlutterActivity() {
         PDDocument.load(inputFile, memorySettings).use { document ->
             val totalPages = document.numberOfPages
             
-            // Quick validation
             if (startPage < 1 || endPage > totalPages || startPage > endPage) {
                 throw Exception("Invalid page range: $startPage-$endPage for PDF with $totalPages pages.")
             }
             
-            // Create new document for split pages
             val splitDoc = PDDocument()
             try {
-                // SPEED BOOST: Add pages in batch
                 for (i in (startPage - 1)..(endPage - 1)) {
                     splitDoc.addPage(document.getPage(i))
                 }
@@ -291,107 +414,4 @@ class MainActivity : FlutterActivity() {
         }
         return@withContext outputFile.absolutePath
     }
-
-    // --- HIGHLY OPTIMIZED REORDER PDF FUNCTION ---
-    private suspend fun reorderPdfNative(path: String): List<String> = withContext(Dispatchers.IO) {
-        val inputFile = File(path)
-        val imagePaths = Collections.synchronizedList(mutableListOf<String>())
-        
-        // Use memory-optimized loading
-        val memorySettings = if (inputFile.length() > 30 * 1024 * 1024) { // > 30MB
-            MemoryUsageSetting.setupTempFileOnly()
-        } else {
-            MemoryUsageSetting.setupMainMemoryOnly()
-        }
-        
-        PDDocument.load(inputFile, memorySettings).use { document ->
-            val renderer = com.tom_roush.pdfbox.rendering.PDFRenderer(document)
-            val pageCount = document.numberOfPages
-            
-            // SPEED BOOST: Lower DPI for faster rendering, adjust based on your needs
-            val dpi = when {
-                pageCount > 50 -> 72f    // Very fast for many pages
-                pageCount > 20 -> 96f    // Balanced
-                else -> 120f             // Higher quality for few pages
-            }
-            
-            // SPEED BOOST: Limit concurrency to avoid memory pressure
-            val concurrency = minOf(pageCount, Runtime.getRuntime().availableProcessors(), 4)
-            
-            // Process pages in batches to control memory usage
-            val batchSize = when {
-                pageCount > 100 -> 10
-                pageCount > 50 -> 15
-                else -> pageCount
-            }
-            
-            val results = (0 until pageCount).chunked(batchSize).flatMap { batch ->
-                batch.map { pageIndex ->
-                    async(Dispatchers.Default) {
-                        try {
-                            // SPEED BOOST: Use GRAY for faster processing if color isn't critical
-                            val imageType = com.tom_roush.pdfbox.rendering.ImageType.RGB
-                            val bitmap = renderer.renderImageWithDPI(pageIndex, dpi, imageType)
-                            
-                            val imageFile = File(context.cacheDir, "page_${pageIndex + 1}_${System.nanoTime()}.jpg") // JPG is faster than PNG
-                            
-                            // SPEED BOOST: Use JPG with higher compression for speed
-                            FileOutputStream(imageFile).use { out ->
-                                bitmap.compress(Bitmap.CompressFormat.JPEG, 85, out) // 85% quality, much faster than PNG
-                            }
-                            
-                            bitmap.recycle()
-                            Pair(pageIndex, imageFile.absolutePath)
-                            
-                        } catch (e: Exception) {
-                            // Return placeholder on error to maintain order
-                            Pair(pageIndex, "")
-                        }
-                    }
-                }
-            }
-            
-            // SPEED BOOST: Process results as they complete, maintain order
-            val sortedResults = results.awaitAll()
-                .filter { it.second.isNotEmpty() } // Remove failed conversions
-                .sortedBy { it.first }
-                .map { it.second }
-            
-            return@withContext sortedResults
-        }
-    }
-
-    // --- ALTERNATIVE: EVEN FASTER REORDER FOR PREVIEW (LOWER QUALITY) ---
-    private suspend fun reorderPdfNativeFast(path: String): List<String> = withContext(Dispatchers.IO) {
-        val inputFile = File(path)
-        val imagePaths = Collections.synchronizedList(mutableListOf<String>())
-        
-        PDDocument.load(inputFile, MemoryUsageSetting.setupMainMemoryOnly()).use { document ->
-            val renderer = com.tom_roush.pdfbox.rendering.PDFRenderer(document)
-            val pageCount = document.numberOfPages
-            
-            // MAXIMUM SPEED: Very low DPI and grayscale
-            val jobs = (0 until pageCount).map { pageIndex ->
-                async(Dispatchers.Default) {
-                    val bitmap = renderer.renderImageWithDPI(
-                        pageIndex, 
-                        50f, // Very low DPI for maximum speed
-                        com.tom_roush.pdfbox.rendering.ImageType.GRAY // Grayscale for speed
-                    )
-                    
-                    val imageFile = File(context.cacheDir, "preview_${pageIndex + 1}.jpg")
-                    FileOutputStream(imageFile).use { out ->
-                        bitmap.compress(Bitmap.CompressFormat.JPEG, 60, out) // Low quality for speed
-                    }
-                    
-                    bitmap.recycle()
-                    Pair(pageIndex, imageFile.absolutePath)
-                }
-            }
-            
-            return@withContext jobs.awaitAll().sortedBy { it.first }.map { it.second }
-        }
-    }
-
-
 }

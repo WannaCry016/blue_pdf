@@ -135,12 +135,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     try {
       Uint8List? resultBytes;
       final filePaths = selectedFiles.map((f) => f.path!).toList();
+      final compressionLevel = ref.read(compressionLevelProvider);
+      int compressionValue;
+      switch (compressionLevel) {
+        case CompressionLevel.low:
+          compressionValue = 1;
+          break;
+        case CompressionLevel.medium:
+          compressionValue = 2;
+          break;
+        case CompressionLevel.high:
+          compressionValue = 3;
+          break;
+      }
 
       // --- Native processing ---
       if (selectedTool == 'Merge PDF') {
-        initialCachePath = await mergePdfsNative(filePaths);
+        initialCachePath = await mergePdfsNative(filePaths, compressionValue);
       } else if (selectedTool == 'Image to PDF') {
-        initialCachePath = await imageToPdfNative(filePaths);
+        initialCachePath = await imageToPdfNative(filePaths, compressionValue);
       } else if (selectedTool == 'Encrypt PDF') {
         final password = await _promptPassword(context, action: "Encrypt");
         if (password == null || password.isEmpty) {
@@ -156,7 +169,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           }
           return; // ✅ this exits the try block and the function
         }
-        initialCachePath = await encryptPdf(filePaths.first, password); 
+        initialCachePath = await encryptPdf(filePaths.first, password, compressionValue); 
       } else if (selectedTool == 'Split PDF') {
         // Prompt for page range
         final range = await showDialog<Map<String, int>>(
@@ -206,10 +219,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ref.read(isProcessingProvider.notifier).state = false;
           return;
         }
-        initialCachePath = await SplitPdfService.splitPdf(filePaths.first, range['start']!, range['end']!);
+        initialCachePath = await splitPdf(filePaths.first, range['start']!, range['end']!, compressionValue);
       } else if (selectedTool == 'Reorder PDF') {
         // Use imageToPdfNative to convert reordered images back to PDF
-        initialCachePath = await imageToPdfNative(filePaths);
+        initialCachePath = await imageToPdfNative(filePaths, compressionValue);
       }
 
       if (initialCachePath == null) {
@@ -394,7 +407,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             if (result != null && result.files.isNotEmpty) {
               try {
                 // Convert PDF to images and add to provider
-                final imagePaths = await ReorderPdfService.reorderPdf(result.files.first.path!);
+                final compressionLevel = ref.read(compressionLevelProvider);
+                int compressionValue;
+                switch (compressionLevel) {
+                  case CompressionLevel.low:
+                    compressionValue = 1;
+                    break;
+                  case CompressionLevel.medium:
+                    compressionValue = 2;
+                    break;
+                  case CompressionLevel.high:
+                    compressionValue = 3;
+                    break;
+                }
+                final imagePaths = await reorderPdf(result.files.first.path!, compressionValue);
                 final imageFiles = imagePaths.map((path) => PlatformFile(
                   name: path.split('/').last,
                   path: path,
@@ -694,65 +720,152 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
-                                  "Selected Files",
+                                  "Your Files",
                                   style: TextStyle(fontSize: mainFont, fontWeight: FontWeight.w600),
                                 ),
                                 if (selectedFiles.isNotEmpty)
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      color: cardColor,
-                                      borderRadius: BorderRadius.circular(20),
-                                      border: Border.all(color: borderColor, width: 1),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        GestureDetector(
-                                          onTap: () => ref.read(viewModeProvider.notifier).state = ViewMode.list,
-                                          child: Container(
-                                            padding: EdgeInsets.symmetric(horizontal: isTab ? 18 : 12, vertical: isTab ? 10 : 6),
-                                            decoration: BoxDecoration(
-                                              color: viewMode == ViewMode.list 
-                                                ? (isDark ? kDarkAccent : Colors.blueAccent)
-                                                : Colors.transparent,
-                                              borderRadius: BorderRadius.circular(18),
-                                            ),
-                                            child: Text(
-                                              "List",
-                                              style: TextStyle(
-                                                fontSize: isTab ? 16 : 12,
-                                                fontWeight: FontWeight.w600,
-                                                color: viewMode == ViewMode.list 
-                                                  ? Colors.white 
-                                                  : textColor,
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Padding(
+                                        padding: EdgeInsets.only(right: isTab ? 12 : 8),
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            color: cardColor,
+                                            borderRadius: BorderRadius.circular(20),
+                                            border: Border.all(color: borderColor, width: 1),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              GestureDetector(
+                                                onTap: () => ref.read(compressionLevelProvider.notifier).state = CompressionLevel.low,
+                                                child: Container(
+                                                  padding: EdgeInsets.symmetric(horizontal: isTab ? 14 : 10, vertical: isTab ? 8 : 6),
+                                                  decoration: BoxDecoration(
+                                                    color: ref.watch(compressionLevelProvider) == CompressionLevel.low 
+                                                      ? (isDark ? kDarkAccent : Colors.blueAccent)
+                                                      : Colors.transparent,
+                                                    borderRadius: BorderRadius.circular(18),
+                                                  ),
+                                                  child: Text(
+                                                    "Low",
+                                                    style: TextStyle(
+                                                      fontSize: isTab ? 14 : 10,
+                                                      fontWeight: FontWeight.w600,
+                                                      color: ref.watch(compressionLevelProvider) == CompressionLevel.low 
+                                                        ? Colors.white 
+                                                        : textColor,
+                                                    ),
+                                                  ),
+                                                ),
                                               ),
-                                            ),
+                                              GestureDetector(
+                                                onTap: () => ref.read(compressionLevelProvider.notifier).state = CompressionLevel.medium,
+                                                child: Container(
+                                                  padding: EdgeInsets.symmetric(horizontal: isTab ? 14 : 10, vertical: isTab ? 8 : 6),
+                                                  decoration: BoxDecoration(
+                                                    color: ref.watch(compressionLevelProvider) == CompressionLevel.medium 
+                                                      ? (isDark ? kDarkAccent : Colors.blueAccent)
+                                                      : Colors.transparent,
+                                                    borderRadius: BorderRadius.circular(18),
+                                                  ),
+                                                  child: Text(
+                                                    "Med",
+                                                    style: TextStyle(
+                                                    fontSize: isTab ? 14 : 10,
+                                                      fontWeight: FontWeight.w600,
+                                                      color: ref.watch(compressionLevelProvider) == CompressionLevel.medium 
+                                                        ? Colors.white 
+                                                        : textColor,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                              GestureDetector(
+                                                onTap: () => ref.read(compressionLevelProvider.notifier).state = CompressionLevel.high,
+                                                child: Container(
+                                                  padding: EdgeInsets.symmetric(horizontal: isTab ? 14 : 10, vertical: isTab ? 8 : 6),
+                                                  decoration: BoxDecoration(
+                                                    color: ref.watch(compressionLevelProvider) == CompressionLevel.high 
+                                                      ? (isDark ? kDarkAccent : Colors.blueAccent)
+                                                      : Colors.transparent,
+                                                    borderRadius: BorderRadius.circular(18),
+                                                  ),
+                                                  child: Text(
+                                                    "High",
+                                                    style: TextStyle(
+                                                      fontSize: isTab ? 14 : 10,
+                                                      fontWeight: FontWeight.w600,
+                                                      color: ref.watch(compressionLevelProvider) == CompressionLevel.high 
+                                                        ? Colors.white 
+                                                        : textColor,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ),
-                                        GestureDetector(
-                                          onTap: () => ref.read(viewModeProvider.notifier).state = ViewMode.grid,
-                                          child: Container(
-                                            padding: EdgeInsets.symmetric(horizontal: isTab ? 18 : 12, vertical: isTab ? 10 : 6),
-                                            decoration: BoxDecoration(
-                                              color: viewMode == ViewMode.grid 
-                                                ? (isDark ? kDarkAccent : Colors.blueAccent)
-                                                : Colors.transparent,
-                                              borderRadius: BorderRadius.circular(18),
-                                            ),
-                                            child: Text(
-                                              "Grid",
-                                              style: TextStyle(
-                                                fontSize: isTab ? 16 : 12,
-                                                fontWeight: FontWeight.w600,
-                                                color: viewMode == ViewMode.grid 
-                                                  ? Colors.white 
-                                                  : textColor,
+                                      ),
+                                      // View Mode Toggle
+                                      Container(
+                                        decoration: BoxDecoration(
+                                          color: cardColor,
+                                          borderRadius: BorderRadius.circular(20),
+                                          border: Border.all(color: borderColor, width: 1),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            GestureDetector(
+                                              onTap: () => ref.read(viewModeProvider.notifier).state = ViewMode.list,
+                                              child: Container(
+                                                padding: EdgeInsets.symmetric(horizontal: isTab ? 18 : 12, vertical: isTab ? 10 : 6),
+                                                decoration: BoxDecoration(
+                                                  color: viewMode == ViewMode.list 
+                                                    ? (isDark ? kDarkAccent : Colors.blueAccent)
+                                                    : Colors.transparent,
+                                                  borderRadius: BorderRadius.circular(18),
+                                                ),
+                                                child: Text(
+                                                  "List",
+                                                  style: TextStyle(
+                                                    fontSize: isTab ? 16 : 12,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: viewMode == ViewMode.list 
+                                                      ? Colors.white 
+                                                      : textColor,
+                                                  ),
+                                                ),
                                               ),
                                             ),
-                                          ),
+                                            GestureDetector(
+                                              onTap: () => ref.read(viewModeProvider.notifier).state = ViewMode.grid,
+                                              child: Container(
+                                                padding: EdgeInsets.symmetric(horizontal: isTab ? 18 : 12, vertical: isTab ? 10 : 6),
+                                                decoration: BoxDecoration(
+                                                  color: viewMode == ViewMode.grid 
+                                                    ? (isDark ? kDarkAccent : Colors.blueAccent)
+                                                    : Colors.transparent,
+                                                  borderRadius: BorderRadius.circular(18),
+                                                ),
+                                                child: Text(
+                                                  "Grid",
+                                                  style: TextStyle(
+                                                    fontSize: isTab ? 16 : 12,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: viewMode == ViewMode.grid 
+                                                      ? Colors.white 
+                                                      : textColor,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
                                         ),
-                                      ],
-                                    ),
+                                      ),
+                                    ],
                                   ),
                               ],
                             ),

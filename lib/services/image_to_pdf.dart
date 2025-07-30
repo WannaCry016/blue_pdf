@@ -3,14 +3,17 @@ import 'package:flutter/services.dart';
 /// Invokes the native code to generate a PDF from images.
 ///
 /// Returns the [String] path to the temporary PDF file created in the app's cache.
-Future<String> imageToPdfNative(List<String> imagePaths) async {
+Future<String> imageToPdfNative(List<String> imagePaths, int compressionValue) async {
   const platform = MethodChannel('bluepdf.native/Pdf_utility');
 
   try {
     // We expect a String path from the native side.
     final String? filePath = await platform.invokeMethod<String>(
       'generatePdfFromImages',
-      {'paths': imagePaths},
+      {
+        'paths': imagePaths,
+        'compression': compressionValue, // 1=Low, 2=Medium, 3=High
+      },
     );
 
     // If the native code fails to produce a path, throw an exception.
