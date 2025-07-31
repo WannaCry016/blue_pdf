@@ -46,6 +46,8 @@ dependencies:
   pro_image_editor: ^10.2.5
   flutter_riverpod: ^2.6.1
   shared_preferences: ^2.5.3
+  in_app_update: ^4.2.2
+  package_info_plus: ^4.2.0
   
 dev_dependencies:
   flutter_test:

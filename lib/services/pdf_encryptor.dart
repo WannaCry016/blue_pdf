@@ -1,16 +1,22 @@
 import 'package:flutter/services.dart';
+const _channel = MethodChannel('com.bluepdf.channel/pdf');
 
-Future<String?> encryptPdf(String path, String password, int compressionValue) async {
-  const platform = MethodChannel('bluepdf.native/Pdf_utility');
+Future<String> encryptPdfNative(String inputPath, String password, int compressionValue) async {
   try {
-    final result = await platform.invokeMethod<String>('encryptPdf', {
-      'path': path,
-      'password': password,
-      'compression': compressionValue, // 1=Low, 2=Medium, 3=High
-    });
-    return result;
-  } catch (e) {
-    print('❌ Error encrypting PDF: $e');
-    return null;
+    final String? filePath = await _channel.invokeMethod<String>(
+      'encryptPdf',
+      {
+        'path': inputPath,
+        'password': password,
+        'compression': compressionValue,
+      },
+    );
+    if (filePath == null || filePath.isEmpty) {
+      throw Exception('Failed to encrypt PDF.');
+    }
+    return filePath;
+  } on PlatformException catch (e) {
+    print("encryptPdfNative failed:  ${e.message}");
+    rethrow;
   }
 }

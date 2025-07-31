@@ -33,6 +33,21 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = 6
         versionName = "1.0.1"
+
+        ndk {
+            abiFilters += listOf("armeabi-v7a", "arm64-v8a")
+        }
+        externalNativeBuild {
+            cmake {
+                cppFlags += ""
+            }
+        }
+
+    }
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+        }
     }
 
     signingConfigs {
@@ -85,4 +100,6 @@ flutter {
 
 dependencies {
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
+    implementation("com.google.android.play:app-update:2.1.0")
+    implementation("com.google.android.play:app-update-ktx:2.1.0")
 }

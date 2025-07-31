@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:ui';
 import 'package:blue_pdf/main.dart';
 import 'package:blue_pdf/services/pdf_encryptor.dart';
+import 'package:blue_pdf/services/update_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:open_filex/open_filex.dart';
 import 'camera.dart';
@@ -39,6 +40,9 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
+
+  // Static variable to track if we've checked for updates
+  static bool _hasCheckedForUpdate = false;
 
   final fileProviders = {
       'Merge PDF': mergePdfFilesProvider,
@@ -151,7 +155,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
       // --- Native processing ---
       if (selectedTool == 'Merge PDF') {
-        initialCachePath = await mergePdfsNative(filePaths, compressionValue);
+        initialCachePath = await mergePdfNative(filePaths, compressionValue);
       } else if (selectedTool == 'Image to PDF') {
         initialCachePath = await imageToPdfNative(filePaths, compressionValue);
       } else if (selectedTool == 'Encrypt PDF') {
@@ -169,7 +173,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           }
           return; // ✅ this exits the try block and the function
         }
-        initialCachePath = await encryptPdf(filePaths.first, password, compressionValue); 
+        initialCachePath = await encryptPdfNative(filePaths.first, password, compressionValue); 
       } else if (selectedTool == 'Split PDF') {
         // Prompt for page range
         final range = await showDialog<Map<String, int>>(
@@ -219,7 +223,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ref.read(isProcessingProvider.notifier).state = false;
           return;
         }
-        initialCachePath = await splitPdf(filePaths.first, range['start']!, range['end']!, compressionValue);
+        final start = range['start']!;
+        final end = range['end']!;
+        final pages = [for (int i = start; i <= end; i++) i];
+        final outputPaths = await splitPdfNative(filePaths.first, pages);
+        // For consistency, set initialCachePath to the first output (or handle as needed)
+        initialCachePath = outputPaths.first;
       } else if (selectedTool == 'Reorder PDF') {
         // Use imageToPdfNative to convert reordered images back to PDF
         initialCachePath = await imageToPdfNative(filePaths, compressionValue);
@@ -420,13 +429,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     compressionValue = 3;
                     break;
                 }
-                final imagePaths = await reorderPdf(result.files.first.path!, compressionValue);
-                final imageFiles = imagePaths.map((path) => PlatformFile(
-                  name: path.split('/').last,
-                  path: path,
-                  size: 0,
-                )).toList();
-                ref.read(reorderPdfFilesProvider.notifier).addFiles(imageFiles);
+                // final imagePaths = await reorderPdfNative(result.files.first.path!, compressionValue);
+                // final imageFiles = imagePaths.map((path) => PlatformFile(
+                //   name: path.split('/').last,
+                //   path: path,
+                //   size: 0,
+                // )).toList();
+                // ref.read(reorderPdfFilesProvider.notifier).addFiles(imageFiles);
               } catch (e) {
                 debugPrint("Reorder PDF Error: $e");
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -486,14 +495,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     var isProcessing = ref.watch(isProcessingProvider);
     
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? kDarkText : Colors.black87;
-    final secondaryTextColor = isDark ? kDarkSecondaryText : Colors.grey.shade600;
     final bgColor = isDark ? kDarkBg : const Color(0xFFECEFF1);
-    final cardColor = isDark ? kDarkCard : Colors.white;
-    final borderColor = isDark ? kDarkBorder : Colors.grey.shade300;
     final gradientColors = isDark
         ? [kDarkPrimary, kDarkAccent, kDarkTeal]
         : [Color(0xFF0D47A1), Color(0xFF1976D2)];
+
+    // Check for updates only once when the widget builds
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_hasCheckedForUpdate) {
+        _hasCheckedForUpdate = true;
+        UpdateService.checkForUpdate(context);
+      }
+    });
 
     return Scaffold(
       backgroundColor: bgColor,

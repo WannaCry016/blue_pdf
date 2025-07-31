@@ -1,29 +1,21 @@
 import 'package:flutter/services.dart';
+const _channel = MethodChannel('com.bluepdf.channel/pdf');
 
-/// Invokes the native code to merge multiple PDF files.
-///
-/// Returns the [String] path to the temporary merged PDF file created in the app's cache.
-Future<String> mergePdfsNative(List<String> filePaths, int compressionValue) async {
-  const platform = MethodChannel('bluepdf.native/Pdf_utility');
-
+Future<String> mergePdfNative(List<String> pdfPaths, int compressionValue) async {
   try {
-    // Invoke the 'mergePdfs' method on the native side.
-    final String? filePath = await platform.invokeMethod<String>(
-      'mergePdfs',
+    final String? filePath = await _channel.invokeMethod<String>(
+      'mergePdf',
       {
-        'paths': filePaths,
-        'compression': compressionValue, // 1=Low, 2=Medium, 3=High
+        'paths': pdfPaths,
+        'compression': compressionValue,
       },
     );
-
     if (filePath == null || filePath.isEmpty) {
-      throw Exception('Native code failed to merge PDFs and return a file path.');
+      throw Exception('Failed to merge PDFs.');
     }
-
     return filePath;
-
   } on PlatformException catch (e) {
-    print("PlatformException in mergePdfsNative: ${e.message}");
+    print("mergePdfNative failed:  ${e.message}");
     rethrow;
   }
 }
