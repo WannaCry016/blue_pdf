@@ -378,6 +378,8 @@ Java_com_bluepdf_blue_1pdf_MainActivity_reorderPdfNative(JNIEnv* env, jobject th
     }
 
     fz_register_document_handlers(ctx);
+    fz_set_aa_level(ctx, 8); // anti-aliasing
+    fz_set_text_aa_level(ctx, 8); // text anti-aliasing
 
     fz_document* doc = nullptr;
     fz_try(ctx) {
@@ -390,6 +392,7 @@ Java_com_bluepdf_blue_1pdf_MainActivity_reorderPdfNative(JNIEnv* env, jobject th
 
     int totalPages = fz_count_pages(ctx, doc);
     std::vector<std::string> imagePaths;
+    float scaleFactor = 2.0f;  // 2x scale for higher resolution
 
     for (int i = 0; i < totalPages; ++i) {
         fz_page* page = nullptr;
@@ -399,35 +402,27 @@ Java_com_bluepdf_blue_1pdf_MainActivity_reorderPdfNative(JNIEnv* env, jobject th
         fz_try(ctx) {
             page = fz_load_page(ctx, doc, i);
             fz_rect bounds = fz_bound_page(ctx, page);
-            
-            LOGI("Page %d bounds: x0=%f, y0=%f, x1=%f, y1=%f", 
-                 i + 1, bounds.x0, bounds.y0, bounds.x1, bounds.y1);
 
-            // Check if bounds are empty or too small, use default A4 size if needed
             if (fz_is_empty_rect(bounds) || (bounds.x1 - bounds.x0) < 10 || (bounds.y1 - bounds.y0) < 10) {
-                LOGI("Page %d has empty or very small bounds, using default A4 size", i + 1);
-                bounds = fz_make_rect(0, 0, A4_WIDTH, A4_HEIGHT);
+                LOGI("Page %d has empty or very small bounds, skipping", i + 1);
+                continue;
             }
 
-            // Use identity matrix to render at original size
-            fz_matrix ctm = fz_identity;
-            fz_irect bbox = fz_round_rect(bounds);
-            
-            LOGI("Page %d bbox: x0=%d, y0=%d, x1=%d, y1=%d", 
-                 i + 1, bbox.x0, bbox.y0, bbox.x1, bbox.y1);
+            fz_matrix ctm = fz_scale(scaleFactor, scaleFactor);
+            fz_irect bbox = fz_round_rect(fz_transform_rect(bounds, ctm));
 
             pix = fz_new_pixmap_with_bbox(ctx, fz_device_rgb(ctx), bbox, nullptr, 0);
-            fz_clear_pixmap_with_value(ctx, pix, 0xFF); // Fill white background
+            fz_clear_pixmap_with_value(ctx, pix, 0xFF);
 
-            dev = fz_new_draw_device(ctx, ctm, pix);
+            fz_matrix transform = fz_identity;
+            dev = fz_new_draw_device(ctx, transform, pix);
+
             fz_run_page(ctx, page, dev, ctm, nullptr);
             fz_close_device(ctx, dev);
 
             std::string outPath = cacheDirStr + "/page_" + std::to_string(i + 1) + ".png";
-            LOGI("Saving page %d to %s", i + 1, outPath.c_str());
             fz_save_pixmap_as_png(ctx, pix, outPath.c_str());
             imagePaths.push_back(outPath);
-            LOGI("Successfully saved page %d", i + 1);
 
         } fz_always(ctx) {
             if (dev) fz_drop_device(ctx, dev);
@@ -442,7 +437,6 @@ Java_com_bluepdf_blue_1pdf_MainActivity_reorderPdfNative(JNIEnv* env, jobject th
     fz_drop_document(ctx, doc);
     fz_drop_context(ctx);
 
-    // Build and return Java String[]
     jclass stringClass = env->FindClass("java/lang/String");
     jobjectArray result = env->NewObjectArray(static_cast<jsize>(imagePaths.size()), stringClass, nullptr);
 

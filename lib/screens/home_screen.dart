@@ -733,95 +733,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
-                                  "Your Files",
+                                  "Selected Files",
                                   style: TextStyle(fontSize: mainFont, fontWeight: FontWeight.w600),
                                 ),
                                 if (selectedFiles.isNotEmpty)
                                   Row(
                                     mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Padding(
-                                        padding: EdgeInsets.only(right: isTab ? 12 : 8),
-                                        child: Container(
-                                          decoration: BoxDecoration(
-                                            color: cardColor,
-                                            borderRadius: BorderRadius.circular(20),
-                                            border: Border.all(color: borderColor, width: 1),
-                                          ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              GestureDetector(
-                                                onTap: () => ref.read(compressionLevelProvider.notifier).state = CompressionLevel.low,
-                                                child: Container(
-                                                  padding: EdgeInsets.symmetric(horizontal: isTab ? 14 : 10, vertical: isTab ? 8 : 6),
-                                                  decoration: BoxDecoration(
-                                                    color: ref.watch(compressionLevelProvider) == CompressionLevel.low 
-                                                      ? (isDark ? kDarkAccent : Colors.blueAccent)
-                                                      : Colors.transparent,
-                                                    borderRadius: BorderRadius.circular(18),
-                                                  ),
-                                                  child: Text(
-                                                    "Low",
-                                                    style: TextStyle(
-                                                      fontSize: isTab ? 14 : 10,
-                                                      fontWeight: FontWeight.w600,
-                                                      color: ref.watch(compressionLevelProvider) == CompressionLevel.low 
-                                                        ? Colors.white 
-                                                        : textColor,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                              GestureDetector(
-                                                onTap: () => ref.read(compressionLevelProvider.notifier).state = CompressionLevel.medium,
-                                                child: Container(
-                                                  padding: EdgeInsets.symmetric(horizontal: isTab ? 14 : 10, vertical: isTab ? 8 : 6),
-                                                  decoration: BoxDecoration(
-                                                    color: ref.watch(compressionLevelProvider) == CompressionLevel.medium 
-                                                      ? (isDark ? kDarkAccent : Colors.blueAccent)
-                                                      : Colors.transparent,
-                                                    borderRadius: BorderRadius.circular(18),
-                                                  ),
-                                                  child: Text(
-                                                    "Med",
-                                                    style: TextStyle(
-                                                    fontSize: isTab ? 14 : 10,
-                                                      fontWeight: FontWeight.w600,
-                                                      color: ref.watch(compressionLevelProvider) == CompressionLevel.medium 
-                                                        ? Colors.white 
-                                                        : textColor,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                              GestureDetector(
-                                                onTap: () => ref.read(compressionLevelProvider.notifier).state = CompressionLevel.high,
-                                                child: Container(
-                                                  padding: EdgeInsets.symmetric(horizontal: isTab ? 14 : 10, vertical: isTab ? 8 : 6),
-                                                  decoration: BoxDecoration(
-                                                    color: ref.watch(compressionLevelProvider) == CompressionLevel.high 
-                                                      ? (isDark ? kDarkAccent : Colors.blueAccent)
-                                                      : Colors.transparent,
-                                                    borderRadius: BorderRadius.circular(18),
-                                                  ),
-                                                  child: Text(
-                                                    "High",
-                                                    style: TextStyle(
-                                                      fontSize: isTab ? 14 : 10,
-                                                      fontWeight: FontWeight.w600,
-                                                      color: ref.watch(compressionLevelProvider) == CompressionLevel.high 
-                                                        ? Colors.white 
-                                                        : textColor,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                      // View Mode Toggle
+                                    children: [           // View Mode Toggle
                                       Container(
                                         decoration: BoxDecoration(
                                           color: cardColor,
