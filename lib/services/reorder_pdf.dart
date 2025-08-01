@@ -4,16 +4,27 @@ const _channel = MethodChannel('com.bluepdf.channel/pdf');
 
 Future<List<String>> reorderPdfNative(String inputPath, int compressionValue) async {
   try {
-    final List<String>? filePath = await _channel.invokeMethod<List<String>>(
+    final dynamic result = await _channel.invokeMethod(
       'reorderPdf',
       {
         'path': inputPath,
       },
     );
-    if (filePath == null || filePath.isEmpty) {
-      throw Exception('Failed to reorder PDF.');
+    
+    if (result == null) {
+      throw Exception('Failed to reorder PDF: null result');
     }
-    return filePath;
+    
+    // Convert the result to List<String>
+    if (result is List) {
+      final List<String> filePaths = result.cast<String>();
+      if (filePaths.isEmpty) {
+        throw Exception('Failed to reorder PDF: empty result');
+      }
+      return filePaths;
+    } else {
+      throw Exception('Failed to reorder PDF: unexpected result type');
+    }
   } on PlatformException catch (e) {
     print("reorderPdfNative failed: ${e.message}");
     rethrow;

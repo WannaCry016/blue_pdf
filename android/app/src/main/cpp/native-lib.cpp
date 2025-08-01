@@ -360,7 +360,7 @@ Java_com_bluepdf_blue_1pdf_MainActivity_splitPdfNative(JNIEnv* env, jobject,
 // REORDER PDF
 extern "C"
 JNIEXPORT jobjectArray JNICALL
-Java_com_bluepdf_blue_1pdf_MainActivity_reorderPdfNative(JNIEnv* env, jobject,
+Java_com_bluepdf_blue_1pdf_MainActivity_reorderPdfNative(JNIEnv* env, jobject thiz,
                                                           jstring inputPath,
                                                           jstring cacheDir) {
     const char* input_cstr = env->GetStringUTFChars(inputPath, nullptr);
@@ -372,14 +372,23 @@ Java_com_bluepdf_blue_1pdf_MainActivity_reorderPdfNative(JNIEnv* env, jobject,
     env->ReleaseStringUTFChars(cacheDir, cacheDir_cstr);
 
     fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
-    if (!ctx) return env->NewObjectArray(0, env->FindClass("java/lang/String"), nullptr);
+    if (!ctx) {
+        LOGI("Failed to create MuPDF context");
+        return env->NewObjectArray(0, env->FindClass("java/lang/String"), nullptr);
+    }
 
     fz_register_document_handlers(ctx);
 
     fz_document* doc = nullptr;
     fz_try(ctx) {
         doc = fz_open_document(ctx, inputFile.c_str());
+        if (!doc) {
+            LOGI("Failed to open document: %s", inputFile.c_str());
+            fz_drop_context(ctx);
+            return env->NewObjectArray(0, env->FindClass("java/lang/String"), nullptr);
+        }
     } fz_catch(ctx) {
+        LOGI("Exception opening document: %s", inputFile.c_str());
         fz_drop_context(ctx);
         return env->NewObjectArray(0, env->FindClass("java/lang/String"), nullptr);
     }
@@ -402,21 +411,24 @@ Java_com_bluepdf_blue_1pdf_MainActivity_reorderPdfNative(JNIEnv* env, jobject,
             dev = fz_new_draw_device(ctx, ctm, pix);
 
             fz_run_page(ctx, page, dev, ctm, nullptr);
-        } fz_always(ctx) {
+            fz_close_device(ctx, dev);
             fz_drop_device(ctx, dev);
-            fz_drop_pixmap(ctx, pix);
-            fz_drop_page(ctx, page);
-        } fz_catch(ctx) {
-            continue;
-        }
+            dev = nullptr;
 
-        std::string outPath = cacheDirStr + "/page_" + std::to_string(i + 1) + ".png";
+            std::string outPath = cacheDirStr + "/page_" + std::to_string(i + 1) + ".png";
+            LOGI("Saving page %d to %s", i + 1, outPath.c_str());
 
-        fz_try(ctx) {
             fz_save_pixmap_as_png(ctx, pix, outPath.c_str());
             imagePaths.push_back(outPath);
+            LOGI("Successfully saved page %d", i + 1);
+
+        } fz_always(ctx) {
+            if (dev) fz_drop_device(ctx, dev);
+            if (pix) fz_drop_pixmap(ctx, pix);
+            if (page) fz_drop_page(ctx, page);
         } fz_catch(ctx) {
-            // Ignore image save failure
+            LOGI("Failed to process page %d", i + 1);
+            continue;
         }
     }
 
@@ -424,15 +436,32 @@ Java_com_bluepdf_blue_1pdf_MainActivity_reorderPdfNative(JNIEnv* env, jobject,
     fz_drop_context(ctx);
 
     // Create Java String[] array to return
-    jobjectArray result = env->NewObjectArray(static_cast<jsize>(imagePaths.size()),
-                                              env->FindClass("java/lang/String"),
-                                              nullptr);
+    jclass stringClass = env->FindClass("java/lang/String");
+    if (!stringClass) {
+        LOGI("Failed to find String class");
+        return nullptr;
+    }
+    
+    jobjectArray result = env->NewObjectArray(static_cast<jsize>(imagePaths.size()), stringClass, nullptr);
+    if (!result) {
+        LOGI("Failed to create String array");
+        return nullptr;
+    }
+
+    LOGI("Created array with %zu elements", imagePaths.size());
 
     for (size_t i = 0; i < imagePaths.size(); ++i) {
         jstring path = env->NewStringUTF(imagePaths[i].c_str());
-        env->SetObjectArrayElement(result, static_cast<jsize>(i), path);
+        if (path) {
+            env->SetObjectArrayElement(result, static_cast<jsize>(i), path);
+            env->DeleteLocalRef(path); // Clean up the local reference
+            LOGI("Added path %zu: %s", i, imagePaths[i].c_str());
+        } else {
+            LOGI("Failed to create string for path %zu", i);
+        }
     }
 
+    LOGI("Returning array with %zu elements", imagePaths.size());
     return result;
 }
 

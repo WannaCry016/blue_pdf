@@ -152,8 +152,16 @@ class MainActivity : FlutterActivity() {
                                 reorderPdfNative(inputPath, cacheDir)
                             }
 
-                            // Just send the array back to Flutter (Platform channel automatically converts Array<String> to List<String>)
-                            result.success(imagePaths)
+                            // Convert Array<String> to List<String> for Flutter
+                            if (imagePaths != null && imagePaths.isNotEmpty()) {
+                                Log.d("MainActivity", "Got ${imagePaths.size} image paths from native code")
+                                // Explicitly convert to List<String> to ensure type safety
+                                val stringList = imagePaths.map { it.toString() }
+                                result.success(stringList)
+                            } else {
+                                Log.e("MainActivity", "Native code returned null or empty array")
+                                result.error("REORDER_FAILED", "Failed to get image paths from native code", null)
+                            }
                         } catch (e: Exception) {
                             result.error("REORDER_FAILED", e.message, null)
                         }
