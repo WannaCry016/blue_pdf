@@ -8,7 +8,6 @@ Future<String> imageToPdfNative(List<String> imagePaths, int compressionValue) a
       'imageToPdf',
       {
         'paths': imagePaths,
-        'compression': compressionValue,
       },
     );
     if (filePath == null || filePath.isEmpty) {

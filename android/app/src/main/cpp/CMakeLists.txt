@@ -1,28 +1,25 @@
 cmake_minimum_required(VERSION 3.4.1)
 
-# Native C++ code
+# Create shared library from your native C++ source
 add_library(native-lib SHARED native-lib.cpp)
 
-# PDFium native library
-add_library(pdfium SHARED IMPORTED)
+# Import the prebuilt MuPDF shared library
+add_library(mupdf SHARED IMPORTED)
 
-# Dynamically set the .so path based on current ABI (arm64-v8a / armeabi-v7a)
-set_target_properties(pdfium PROPERTIES
-    IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/../jniLibs/${ANDROID_ABI}/libpdfium.so
-    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_SOURCE_DIR}/include
+# Set path to the prebuilt MuPDF .so file
+set_target_properties(mupdf PROPERTIES
+    IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/../jniLibs/${ANDROID_ABI}/libmupdf_java.so
 )
 
-# Android log library
+# Find the log library for Android
 find_library(log-lib log)
 
-# Include directories
-target_include_directories(native-lib PRIVATE
-    ${CMAKE_SOURCE_DIR}/include
-)
+# Include headers from your MuPDF include folder
+include_directories(${CMAKE_SOURCE_DIR}/include)
 
-# Link everything
+# Link your native library with MuPDF and log-lib
 target_link_libraries(
     native-lib
-    pdfium
+    mupdf
     ${log-lib}
 )

@@ -1,9 +1,9 @@
 import 'package:flutter/services.dart';
 const _channel = MethodChannel('com.bluepdf.channel/pdf');
 
-Future<List<String>> splitPdfNative(String inputPath, List<int> pagesToSplit) async {
+Future<String> splitPdfNative(String inputPath, List<int> pagesToSplit) async {
   try {
-    final List<dynamic>? outputPaths = await _channel.invokeMethod<List<dynamic>>(
+    final String? outputPaths = await _channel.invokeMethod<String>(
       'splitPdf',
       {
         'path': inputPath,
@@ -13,7 +13,7 @@ Future<List<String>> splitPdfNative(String inputPath, List<int> pagesToSplit) as
     if (outputPaths == null || outputPaths.isEmpty) {
       throw Exception('Failed to split PDF.');
     }
-    return outputPaths.cast<String>();
+    return outputPaths;
   } on PlatformException catch (e) {
     print("splitPdfNative failed: ${e.message}");
     rethrow;

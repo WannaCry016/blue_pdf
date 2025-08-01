@@ -228,7 +228,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         final pages = [for (int i = start; i <= end; i++) i];
         final outputPaths = await splitPdfNative(filePaths.first, pages);
         // For consistency, set initialCachePath to the first output (or handle as needed)
-        initialCachePath = outputPaths.first;
+        initialCachePath = outputPaths;
       } else if (selectedTool == 'Reorder PDF') {
         // Use imageToPdfNative to convert reordered images back to PDF
         initialCachePath = await imageToPdfNative(filePaths, compressionValue);
@@ -429,13 +429,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     compressionValue = 3;
                     break;
                 }
-                // final imagePaths = await reorderPdfNative(result.files.first.path!, compressionValue);
-                // final imageFiles = imagePaths.map((path) => PlatformFile(
-                //   name: path.split('/').last,
-                //   path: path,
-                //   size: 0,
-                // )).toList();
-                // ref.read(reorderPdfFilesProvider.notifier).addFiles(imageFiles);
+                final imagePaths = await reorderPdfNative(result.files.first.path!, compressionValue);
+                final imageFiles = imagePaths.map((path) => PlatformFile(
+                  name: path.split('/').last,
+                  path: path,
+                  size: 0,
+                )).toList();
+                ref.read(reorderPdfFilesProvider.notifier).addFiles(imageFiles);
               } catch (e) {
                 debugPrint("Reorder PDF Error: $e");
                 ScaffoldMessenger.of(context).showSnackBar(

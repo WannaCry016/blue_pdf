@@ -7,7 +7,6 @@ Future<String> mergePdfNative(List<String> pdfPaths, int compressionValue) async
       'mergePdf',
       {
         'paths': pdfPaths,
-        'compression': compressionValue,
       },
     );
     if (filePath == null || filePath.isEmpty) {

@@ -6,3 +6,13 @@ flutter build apk --split-per-abi
 keytool -list -v -keystore E:\PDF\blue_pdf\android\keystores\blue_pdf_release.keystore
 keytool -genkey -v -keystore blue_pdf_release.keystore -alias bluepdfkey -keyalg RSA -keysize 2048 -validity 10000
 flutter build appbundle --release
+
+
+MUPDF Setup
+
+git clone --recursive https://github.com/ArtifexSoftware/mupdf.git
+cd mupdf
+
+git submodule update --init --recursive
+
+cmd.exe /c "C:\Users\HP\AppData\Local\Android\Sdk\ndk\27.0.12077973\ndk-build.cmd" NDK_PROJECT_PATH=E:\PDF\blue_pdf\mupdf\platform\java APP_BUILD_SCRIPT=E:\PDF\blue_pdf\mupdf\platform\java\Android.mk
