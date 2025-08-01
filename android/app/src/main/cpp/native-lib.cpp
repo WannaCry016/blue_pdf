@@ -382,13 +382,8 @@ Java_com_bluepdf_blue_1pdf_MainActivity_reorderPdfNative(JNIEnv* env, jobject th
     fz_document* doc = nullptr;
     fz_try(ctx) {
         doc = fz_open_document(ctx, inputFile.c_str());
-        if (!doc) {
-            LOGI("Failed to open document: %s", inputFile.c_str());
-            fz_drop_context(ctx);
-            return env->NewObjectArray(0, env->FindClass("java/lang/String"), nullptr);
-        }
     } fz_catch(ctx) {
-        LOGI("Exception opening document: %s", inputFile.c_str());
+        LOGI("Failed to open document: %s", inputFile.c_str());
         fz_drop_context(ctx);
         return env->NewObjectArray(0, env->FindClass("java/lang/String"), nullptr);
     }
@@ -404,20 +399,32 @@ Java_com_bluepdf_blue_1pdf_MainActivity_reorderPdfNative(JNIEnv* env, jobject th
         fz_try(ctx) {
             page = fz_load_page(ctx, doc, i);
             fz_rect bounds = fz_bound_page(ctx, page);
-            fz_matrix ctm = fz_scale(2.0f, 2.0f);
-            fz_irect bbox = fz_round_rect(fz_transform_rect(bounds, ctm));
+            
+            LOGI("Page %d bounds: x0=%f, y0=%f, x1=%f, y1=%f", 
+                 i + 1, bounds.x0, bounds.y0, bounds.x1, bounds.y1);
+
+            // Check if bounds are empty or too small, use default A4 size if needed
+            if (fz_is_empty_rect(bounds) || (bounds.x1 - bounds.x0) < 10 || (bounds.y1 - bounds.y0) < 10) {
+                LOGI("Page %d has empty or very small bounds, using default A4 size", i + 1);
+                bounds = fz_make_rect(0, 0, A4_WIDTH, A4_HEIGHT);
+            }
+
+            // Use identity matrix to render at original size
+            fz_matrix ctm = fz_identity;
+            fz_irect bbox = fz_round_rect(bounds);
+            
+            LOGI("Page %d bbox: x0=%d, y0=%d, x1=%d, y1=%d", 
+                 i + 1, bbox.x0, bbox.y0, bbox.x1, bbox.y1);
 
             pix = fz_new_pixmap_with_bbox(ctx, fz_device_rgb(ctx), bbox, nullptr, 0);
-            dev = fz_new_draw_device(ctx, ctm, pix);
+            fz_clear_pixmap_with_value(ctx, pix, 0xFF); // Fill white background
 
+            dev = fz_new_draw_device(ctx, ctm, pix);
             fz_run_page(ctx, page, dev, ctm, nullptr);
             fz_close_device(ctx, dev);
-            fz_drop_device(ctx, dev);
-            dev = nullptr;
 
             std::string outPath = cacheDirStr + "/page_" + std::to_string(i + 1) + ".png";
             LOGI("Saving page %d to %s", i + 1, outPath.c_str());
-
             fz_save_pixmap_as_png(ctx, pix, outPath.c_str());
             imagePaths.push_back(outPath);
             LOGI("Successfully saved page %d", i + 1);
@@ -427,7 +434,7 @@ Java_com_bluepdf_blue_1pdf_MainActivity_reorderPdfNative(JNIEnv* env, jobject th
             if (pix) fz_drop_pixmap(ctx, pix);
             if (page) fz_drop_page(ctx, page);
         } fz_catch(ctx) {
-            LOGI("Failed to process page %d", i + 1);
+            LOGI("Error rendering page %d", i + 1);
             continue;
         }
     }
@@ -435,34 +442,18 @@ Java_com_bluepdf_blue_1pdf_MainActivity_reorderPdfNative(JNIEnv* env, jobject th
     fz_drop_document(ctx, doc);
     fz_drop_context(ctx);
 
-    // Create Java String[] array to return
+    // Build and return Java String[]
     jclass stringClass = env->FindClass("java/lang/String");
-    if (!stringClass) {
-        LOGI("Failed to find String class");
-        return nullptr;
-    }
-    
     jobjectArray result = env->NewObjectArray(static_cast<jsize>(imagePaths.size()), stringClass, nullptr);
-    if (!result) {
-        LOGI("Failed to create String array");
-        return nullptr;
-    }
-
-    LOGI("Created array with %zu elements", imagePaths.size());
 
     for (size_t i = 0; i < imagePaths.size(); ++i) {
         jstring path = env->NewStringUTF(imagePaths[i].c_str());
-        if (path) {
-            env->SetObjectArrayElement(result, static_cast<jsize>(i), path);
-            env->DeleteLocalRef(path); // Clean up the local reference
-            LOGI("Added path %zu: %s", i, imagePaths[i].c_str());
-        } else {
-            LOGI("Failed to create string for path %zu", i);
-        }
+        env->SetObjectArrayElement(result, static_cast<jsize>(i), path);
+        env->DeleteLocalRef(path);
     }
 
-    LOGI("Returning array with %zu elements", imagePaths.size());
     return result;
 }
+
 
 
