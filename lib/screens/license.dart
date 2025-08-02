@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-class AboutPage extends StatelessWidget {
-  const AboutPage({super.key});
+class LicensePage extends StatelessWidget {
+  const LicensePage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -20,7 +20,7 @@ class AboutPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         iconTheme: const IconThemeData(color: Colors.white),
-        title: const Text("About"),
+        title: const Text("License"),
         titleTextStyle: const TextStyle(
           color: Colors.white,
           fontSize: 18,

@@ -1,6 +1,7 @@
 import 'package:blue_pdf/screens/privacy_policy_page.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide LicensePage;
 import 'package:url_launcher/url_launcher.dart';
+import 'package:blue_pdf/screens/license.dart';
 
 class AboutPage extends StatelessWidget {
   const AboutPage({super.key});
@@ -56,8 +57,6 @@ class AboutPage extends StatelessWidget {
           _buildConnectCard(cardColor, textColor, secondaryTextColor),
           const SizedBox(height: 14),
           _buildSupportCard(context, cardColor, textColor, secondaryTextColor, borderColor),
-          const SizedBox(height: 24),
-          _buildAppInfo(textColor, secondaryTextColor),
         ],
       ),
     );
@@ -202,27 +201,20 @@ class AboutPage extends StatelessWidget {
             trailing: const Icon(Icons.arrow_forward_ios, size: 14),
             onTap: () => _launchURL("https://play.google.com/store/apps/details?id=com.bluepdf.blue_pdf"),
           ),
+          Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
+          ListTile(
+            leading: Icon(Icons.local_convenience_store, color: Colors.blueGrey.shade300),
+            title: Text("License", style: TextStyle(fontSize: 14.5, color: textColor)),
+            trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const LicensePage()),
+              );
+            },
+          ),
         ],
       ),
-    );
-  }
-
-  Widget _buildAppInfo(Color textColor, Color secondaryTextColor) {
-    return Column(
-      children: [
-        Text("Blue PDF v1.0.0", style: TextStyle(color: secondaryTextColor, fontSize: 13)),
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text("Built with ", style: TextStyle(color: secondaryTextColor, fontSize: 13)),
-            const Icon(Icons.favorite, color: Colors.red, size: 14),
-            Text(" in Flutter", style: TextStyle(color: secondaryTextColor, fontSize: 13)),
-            const SizedBox(width: 4),
-            Image.asset('assets/flutter_logo.png', height: 18),
-          ],
-        ),
-      ],
     );
   }
 }
