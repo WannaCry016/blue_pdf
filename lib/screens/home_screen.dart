@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:ui';
 import 'package:blue_pdf/main.dart';
 import 'package:blue_pdf/services/pdf_encryptor.dart';
+import 'package:blue_pdf/services/update_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:open_filex/open_filex.dart';
 import 'camera.dart';
@@ -39,6 +40,9 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
+
+  // Static variable to track if we've checked for updates
+  static bool _hasCheckedForUpdate = false;
 
   final fileProviders = {
       'Merge PDF': mergePdfFilesProvider,
@@ -136,11 +140,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       Uint8List? resultBytes;
       final filePaths = selectedFiles.map((f) => f.path!).toList();
 
+
       // --- Native processing ---
       if (selectedTool == 'Merge PDF') {
-        initialCachePath = await mergePdfsNative(filePaths);
+        initialCachePath = await mergePdfNative(filePaths);
       } else if (selectedTool == 'Image to PDF') {
-        initialCachePath = await imageToPdfNative(filePaths);
+        final pageSize = ref.read(pageSizeProvider);
+        final pageMode = pageSize == PageSize.a4 ? "A4" : "FIT";
+        initialCachePath = await imageToPdfNative(filePaths, pageMode);
       } else if (selectedTool == 'Encrypt PDF') {
         final password = await _promptPassword(context, action: "Encrypt");
         if (password == null || password.isEmpty) {
@@ -156,7 +163,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           }
           return; // ✅ this exits the try block and the function
         }
-        initialCachePath = await encryptPdf(filePaths.first, password); 
+        initialCachePath = await encryptPdfNative(filePaths.first, password); 
       } else if (selectedTool == 'Split PDF') {
         // Prompt for page range
         final range = await showDialog<Map<String, int>>(
@@ -206,10 +213,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ref.read(isProcessingProvider.notifier).state = false;
           return;
         }
-        initialCachePath = await SplitPdfService.splitPdf(filePaths.first, range['start']!, range['end']!);
+        final start = range['start']!;
+        final end = range['end']!;
+        final pages = [for (int i = start; i <= end; i++) i];
+        final outputPaths = await splitPdfNative(filePaths.first, pages);
+        // For consistency, set initialCachePath to the first output (or handle as needed)
+        initialCachePath = outputPaths;
       } else if (selectedTool == 'Reorder PDF') {
         // Use imageToPdfNative to convert reordered images back to PDF
-        initialCachePath = await imageToPdfNative(filePaths);
+        final pageMode = "FIT";
+        initialCachePath = await imageToPdfNative(filePaths, pageMode);
       }
 
       if (initialCachePath == null) {
@@ -391,10 +404,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ref.read(mergePdfFilesProvider.notifier).addFiles(result.files);
             break;
           case 'Reorder PDF':
-            if (result != null && result.files.isNotEmpty) {
+            if (result.files.isNotEmpty) {
               try {
                 // Convert PDF to images and add to provider
-                final imagePaths = await ReorderPdfService.reorderPdf(result.files.first.path!);
+                final imagePaths = await reorderPdfNative(result.files.first.path!);
                 final imageFiles = imagePaths.map((path) => PlatformFile(
                   name: path.split('/').last,
                   path: path,
@@ -460,14 +473,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     var isProcessing = ref.watch(isProcessingProvider);
     
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? kDarkText : Colors.black87;
-    final secondaryTextColor = isDark ? kDarkSecondaryText : Colors.grey.shade600;
     final bgColor = isDark ? kDarkBg : const Color(0xFFECEFF1);
-    final cardColor = isDark ? kDarkCard : Colors.white;
-    final borderColor = isDark ? kDarkBorder : Colors.grey.shade300;
     final gradientColors = isDark
         ? [kDarkPrimary, kDarkAccent, kDarkTeal]
         : [Color(0xFF0D47A1), Color(0xFF1976D2)];
+
+    // Check for updates only once when the widget builds
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_hasCheckedForUpdate) {
+        _hasCheckedForUpdate = true;
+        UpdateService.checkForUpdate(context);
+      }
+    });
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -578,21 +595,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     GestureDetector(
                       onTap: () {
                         if (selectedTool == null) {
-                          showDialog(
-                            context: context,
-                            builder: (context) => AlertDialog(
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              title: Text("Tool Not Selected", style: TextStyle(fontSize: mainFont)),
-                              content: Text(
-                                "Please select a tool before choosing a file.",
-                                style: TextStyle(fontSize: subFont),
+                          final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Row(
+                                children: [
+                                  Icon(
+                                    Icons.warning_amber_rounded,
+                                    color: Colors.orange,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      "Please select a tool before choosing a file",
+                                      style: TextStyle(fontWeight: FontWeight.w500, color: isDarkMode ? Colors.white : Colors.black,),
+                                    ),
+                                  ),
+                                ],
                               ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  child: Text("OK", style: TextStyle(color: Color(0xFFFF6F00), fontSize: subFont)),
-                                )
-                              ],
+                              duration: const Duration(seconds: 1),
+                              backgroundColor: isDarkMode ? kDarkCard : Colors.white,
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              margin: const EdgeInsets.all(16),
                             ),
                           );
                           return;
@@ -698,61 +726,130 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                   style: TextStyle(fontSize: mainFont, fontWeight: FontWeight.w600),
                                 ),
                                 if (selectedFiles.isNotEmpty)
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      color: cardColor,
-                                      borderRadius: BorderRadius.circular(20),
-                                      border: Border.all(color: borderColor, width: 1),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        GestureDetector(
-                                          onTap: () => ref.read(viewModeProvider.notifier).state = ViewMode.list,
-                                          child: Container(
-                                            padding: EdgeInsets.symmetric(horizontal: isTab ? 18 : 12, vertical: isTab ? 10 : 6),
-                                            decoration: BoxDecoration(
-                                              color: viewMode == ViewMode.list 
-                                                ? (isDark ? kDarkAccent : Colors.blueAccent)
-                                                : Colors.transparent,
-                                              borderRadius: BorderRadius.circular(18),
-                                            ),
-                                            child: Text(
-                                              "List",
-                                              style: TextStyle(
-                                                fontSize: isTab ? 16 : 12,
-                                                fontWeight: FontWeight.w600,
-                                                color: viewMode == ViewMode.list 
-                                                  ? Colors.white 
-                                                  : textColor,
-                                              ),
-                                            ),
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      // Toggle only for Image to PDF
+                                      if (selectedTool == 'Image to PDF') ...[
+                                        SizedBox(width: isTab ? 12 : 8),
+                                        Container(
+                                          decoration: BoxDecoration(
+                                            color: cardColor,
+                                            borderRadius: BorderRadius.circular(20),
+                                            border: Border.all(color: borderColor, width: 1),
                                           ),
-                                        ),
-                                        GestureDetector(
-                                          onTap: () => ref.read(viewModeProvider.notifier).state = ViewMode.grid,
-                                          child: Container(
-                                            padding: EdgeInsets.symmetric(horizontal: isTab ? 18 : 12, vertical: isTab ? 10 : 6),
-                                            decoration: BoxDecoration(
-                                              color: viewMode == ViewMode.grid 
-                                                ? (isDark ? kDarkAccent : Colors.blueAccent)
-                                                : Colors.transparent,
-                                              borderRadius: BorderRadius.circular(18),
-                                            ),
-                                            child: Text(
-                                              "Grid",
-                                              style: TextStyle(
-                                                fontSize: isTab ? 16 : 12,
-                                                fontWeight: FontWeight.w600,
-                                                color: viewMode == ViewMode.grid 
-                                                  ? Colors.white 
-                                                  : textColor,
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              GestureDetector(
+                                                onTap: () => ref.read(pageSizeProvider.notifier).state = PageSize.a4,
+                                                child: Container(
+                                                  padding: EdgeInsets.symmetric(horizontal: isTab ? 18 : 12, vertical: isTab ? 10 : 6),
+                                                  decoration: BoxDecoration(
+                                                    color: ref.watch(pageSizeProvider) == PageSize.a4 
+                                                      ? (isDark ? kDarkAccent : Colors.blueAccent)
+                                                      : Colors.transparent,
+                                                    borderRadius: BorderRadius.circular(18),
+                                                  ),
+                                                  child: Text(
+                                                    "A4",
+                                                    style: TextStyle(
+                                                      fontSize: isTab ? 16 : 12,
+                                                      fontWeight: FontWeight.w600,
+                                                      color: ref.watch(pageSizeProvider) == PageSize.a4 
+                                                        ? Colors.white 
+                                                        : textColor,
+                                                    ),
+                                                  ),
+                                                ),
                                               ),
-                                            ),
+                                              GestureDetector(
+                                                onTap: () => ref.read(pageSizeProvider.notifier).state = PageSize.fit,
+                                                child: Container(
+                                                  padding: EdgeInsets.symmetric(horizontal: isTab ? 18 : 12, vertical: isTab ? 10 : 6),
+                                                  decoration: BoxDecoration(
+                                                    color: ref.watch(pageSizeProvider) == PageSize.fit 
+                                                      ? (isDark ? kDarkAccent : Colors.blueAccent)
+                                                      : Colors.transparent,
+                                                    borderRadius: BorderRadius.circular(18),
+                                                  ),
+                                                  child: Text(
+                                                    "Fit",
+                                                    style: TextStyle(
+                                                      fontSize: isTab ? 16 : 12,
+                                                      fontWeight: FontWeight.w600,
+                                                      color: ref.watch(pageSizeProvider) == PageSize.fit 
+                                                        ? Colors.white 
+                                                        : textColor,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ),
                                       ],
-                                    ),
+
+                                      const SizedBox(width: 12),
+                                      // View Mode Toggle
+                                      Container(
+                                        decoration: BoxDecoration(
+                                          color: cardColor,
+                                          borderRadius: BorderRadius.circular(20),
+                                          border: Border.all(color: borderColor, width: 1),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            GestureDetector(
+                                              onTap: () => ref.read(viewModeProvider.notifier).state = ViewMode.list,
+                                              child: Container(
+                                                padding: EdgeInsets.symmetric(horizontal: isTab ? 18 : 12, vertical: isTab ? 10 : 6),
+                                                decoration: BoxDecoration(
+                                                  color: viewMode == ViewMode.list 
+                                                    ? (isDark ? kDarkAccent : Colors.blueAccent)
+                                                    : Colors.transparent,
+                                                  borderRadius: BorderRadius.circular(18),
+                                                ),
+                                                child: Text(
+                                                  "List",
+                                                  style: TextStyle(
+                                                    fontSize: isTab ? 16 : 12,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: viewMode == ViewMode.list 
+                                                      ? Colors.white 
+                                                      : textColor,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                            GestureDetector(
+                                              onTap: () => ref.read(viewModeProvider.notifier).state = ViewMode.grid,
+                                              child: Container(
+                                                padding: EdgeInsets.symmetric(horizontal: isTab ? 18 : 12, vertical: isTab ? 10 : 6),
+                                                decoration: BoxDecoration(
+                                                  color: viewMode == ViewMode.grid 
+                                                    ? (isDark ? kDarkAccent : Colors.blueAccent)
+                                                    : Colors.transparent,
+                                                  borderRadius: BorderRadius.circular(18),
+                                                ),
+                                                child: Text(
+                                                  "Grid",
+                                                  style: TextStyle(
+                                                    fontSize: isTab ? 16 : 12,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: viewMode == ViewMode.grid 
+                                                      ? Colors.white 
+                                                      : textColor,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    
+                                    ],
                                   ),
                               ],
                             ),

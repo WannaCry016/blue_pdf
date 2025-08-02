@@ -1,28 +1,32 @@
 import 'package:flutter/services.dart';
 
-class ReorderPdfService {
-  static const MethodChannel _channel = MethodChannel('bluepdf.native/Pdf_utility');
+const _channel = MethodChannel('com.bluepdf.channel/pdf');
 
-  /// Converts each page of the PDF at [path] to an image and returns the list of image paths.
-  static Future<List<String>> reorderPdf(String path) async {
-    try {
-      final result = await _channel.invokeMethod<List<dynamic>>('reorderPdf', {
-        'path': path,
-      });
-      
-      if (result == null) {
-        throw Exception('Native method returned null result');
-      }
-      
-      if (result.isEmpty) {
-        throw Exception('PDF conversion resulted in no images');
-      }
-      
-      return result.cast<String>();
-    } on PlatformException catch (e) {
-      throw Exception('Platform error: ${e.code} - ${e.message}');
-    } catch (e) {
-      throw Exception('Failed to convert PDF to images: $e');
+Future<List<String>> reorderPdfNative(String inputPath) async {
+  try {
+    final dynamic result = await _channel.invokeMethod(
+      'reorderPdf',
+      {
+        'path': inputPath,
+      },
+    );
+    
+    if (result == null) {
+      throw Exception('Failed to reorder PDF: null result');
     }
+    
+    // Convert the result to List<String>
+    if (result is List) {
+      final List<String> filePaths = result.cast<String>();
+      if (filePaths.isEmpty) {
+        throw Exception('Failed to reorder PDF: empty result');
+      }
+      return filePaths;
+    } else {
+      throw Exception('Failed to reorder PDF: unexpected result type');
+    }
+  } on PlatformException catch (e) {
+    print("reorderPdfNative failed: ${e.message}");
+    rethrow;
   }
-} 
+}
