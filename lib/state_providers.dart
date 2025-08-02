@@ -6,8 +6,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 enum ViewMode { list, grid }
 
-// Compression levels enum
-enum CompressionLevel { low, medium, high }
+// Page size enum for Image to PDF
+enum PageSize { a4, fit }
 
 var selectedToolProvider = StateProvider<String?>((ref) => null);
 var recentFilesProvider = StateProvider<List<String>>((ref) => []);
@@ -17,7 +17,7 @@ final savePathProvider = StateProvider<String?>((ref) => null);
 final mergedPdfBytesProvider = StateProvider<Uint8List?>((ref) => null);
 final cachePathProvider = StateProvider<String?>((ref) => null);
 final viewModeProvider = StateProvider<ViewMode>((ref) => ViewMode.list);
-final compressionLevelProvider = StateProvider<CompressionLevel>((ref) => CompressionLevel.medium);
+final pageSizeProvider = StateProvider<PageSize>((ref) => PageSize.a4);
 
 class ThemePrefs {
   static const _themeKey = 'theme_mode';

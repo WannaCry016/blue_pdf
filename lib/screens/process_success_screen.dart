@@ -270,15 +270,21 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
                                 borderRadius: BorderRadius.circular(cardRadius),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: isDark ? accent.withOpacity(0.13) : Colors.blue.withOpacity(0.13),
-                                    blurRadius: isTab ? 14 : 8,
-                                    offset: const Offset(0, 3),
+                                    color: isDark 
+                                      ? accent.withOpacity(0.13) 
+                                      : Colors.blue.withOpacity(0.08),
+                                    blurRadius: isTab ? 12 : 6,
+                                    offset: const Offset(0, 2),
                                   ),
                                 ],
+                                // Add subtle border for light theme
+                                border: isDark 
+                                  ? null 
+                                  : Border.all(color: Colors.blue.withOpacity(0.1), width: 0.5),
                               ),
                               child: ElevatedButton.icon(
                                 icon: Icon(Icons.picture_as_pdf_rounded, color: Colors.white, size: buttonIcon),
-                                label: Text("Preview", style: TextStyle(fontSize: buttonFont, color: Colors.white)),
+                                label: Text("Preview", style: TextStyle(fontSize: buttonFont, color: Colors.white, fontWeight: FontWeight.w500)),
                                 onPressed: () async {
                                   final file = File(cachePath);
 
@@ -289,13 +295,13 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
                                     );
 
                                     if (result.type != ResultType.done) {
-                                      print('❌ Could not open file: \\${result.message}');
+                                      print('❌ Could not open file: ${result.message}');
                                       ScaffoldMessenger.of(context).showSnackBar(
                                         const SnackBar(content: Text("Failed to open PDF viewer.")),
                                       );
                                     }
                                   } else {
-                                    print('❌ Preview file missing: \\${file.path}');
+                                    print('❌ Preview file missing: ${file.path}');
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(content: Text("File not found in cache.")),
                                     );
@@ -323,15 +329,21 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
                                 borderRadius: BorderRadius.circular(cardRadius),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: isDark ? accent.withOpacity(0.13) : Colors.blue.withOpacity(0.13),
-                                    blurRadius: isTab ? 14 : 8,
-                                    offset: const Offset(0, 3),
+                                    color: isDark 
+                                      ? accent.withOpacity(0.13) 
+                                      : Colors.blue.withOpacity(0.08),
+                                    blurRadius: isTab ? 12 : 6,
+                                    offset: const Offset(0, 2),
                                   ),
                                 ],
+                                // Add subtle border for light theme
+                                border: isDark 
+                                  ? null 
+                                  : Border.all(color: Colors.blue.withOpacity(0.1), width: 0.5),
                               ),
                               child: ElevatedButton.icon(
                                 icon: Icon(Icons.share, color: Colors.white, size: buttonIcon),
-                                label: Text("Share", style: TextStyle(fontSize: buttonFont, color: Colors.white)),
+                                label: Text("Share", style: TextStyle(fontSize: buttonFont, color: Colors.white, fontWeight: FontWeight.w500)),
                                 onPressed: () async {
                                   final file = File(cachePath);
                                   if (await file.exists()) {
@@ -342,10 +354,10 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
                                         ),
                                       );
                                     } catch (e) {
-                                      print('❌ Share failed: \\${e}');
+                                      print('❌ Share failed: ${e}');
                                     }
                                   } else {
-                                    print('❌ Cache file not found: \\${file.path}');
+                                    print('❌ Cache file not found: ${file.path}');
                                   }
                                 },
                                 style: ElevatedButton.styleFrom(
@@ -376,15 +388,21 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
                             borderRadius: BorderRadius.circular(cardRadius),
                             boxShadow: [
                               BoxShadow(
-                                color: isDark ? accent.withOpacity(0.13) : Colors.blue.withOpacity(0.13),
-                                blurRadius: isTab ? 14 : 8,
-                                offset: const Offset(0, 3),
+                                color: isDark 
+                                  ? accent.withOpacity(0.13) 
+                                  : Colors.blue.withOpacity(0.08),
+                                blurRadius: isTab ? 12 : 6,
+                                offset: const Offset(0, 2),
                               ),
                             ],
+                            // Add subtle border for light theme
+                            border: isDark 
+                              ? null 
+                              : Border.all(color: Colors.blue.withOpacity(0.1), width: 0.5),
                           ),
                           child: ElevatedButton.icon(
                             icon: Icon(Icons.home, color: Colors.white, size: buttonIcon),
-                            label: Text("Back to Home", style: TextStyle(fontSize: buttonFont, color: Colors.white)),
+                            label: Text("Back to Home", style: TextStyle(fontSize: buttonFont, color: Colors.white, fontWeight: FontWeight.w500)),
                             onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.transparent,

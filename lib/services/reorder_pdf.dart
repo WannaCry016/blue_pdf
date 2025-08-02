@@ -2,7 +2,7 @@ import 'package:flutter/services.dart';
 
 const _channel = MethodChannel('com.bluepdf.channel/pdf');
 
-Future<List<String>> reorderPdfNative(String inputPath, int compressionValue) async {
+Future<List<String>> reorderPdfNative(String inputPath) async {
   try {
     final dynamic result = await _channel.invokeMethod(
       'reorderPdf',

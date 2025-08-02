@@ -30,14 +30,17 @@ fz_context* init_context() {
 }
 
 // --- IMAGE TO PDF ---
-extern "C" JNIEXPORT jstring JNICALL
+extern "C"
+JNIEXPORT jstring JNICALL
 Java_com_bluepdf_blue_1pdf_MainActivity_imageToPdfNative(JNIEnv* env, jobject,
                                                          jobjectArray imagePaths,
-                                                         jstring cacheDir) {
+                                                         jstring cacheDir,
+                                                         jstring pageSizeMode) {
     fz_context* ctx = init_context();
     if (!ctx) return env->NewStringUTF("");
 
     const char* dir = env->GetStringUTFChars(cacheDir, nullptr);
+    const char* mode = env->GetStringUTFChars(pageSizeMode, nullptr);
     std::string outputPath = std::string(dir) + "/output.pdf";
 
     fz_document_writer* writer = nullptr;
@@ -47,6 +50,7 @@ Java_com_bluepdf_blue_1pdf_MainActivity_imageToPdfNative(JNIEnv* env, jobject,
     } fz_catch(ctx) {
         fz_drop_context(ctx);
         env->ReleaseStringUTFChars(cacheDir, dir);
+        env->ReleaseStringUTFChars(pageSizeMode, mode);
         return env->NewStringUTF("");
     }
 
@@ -60,15 +64,42 @@ Java_com_bluepdf_blue_1pdf_MainActivity_imageToPdfNative(JNIEnv* env, jobject,
             int img_w = img->w;
             int img_h = img->h;
 
-            fz_rect page_rect = fz_make_rect(0, 0, (float)img_w, (float)img_h);
+            fz_rect page_rect;
+            fz_matrix m;
+
+            if (strcmp(mode, "A4") == 0) {
+                const float A4_W = 595.0f; // 8.27 inch * 72
+                const float A4_H = 842.0f; // 11.69 inch * 72
+                page_rect = fz_make_rect(0, 0, A4_W, A4_H);
+
+                // Desired DPI (can also be 150, 200, etc.)
+                const float dpi = 150.0f;
+
+                // Convert image size in pixels to points (1 inch = 72 points)
+                float img_w_pt = (img_w / dpi) * 72.0f;
+                float img_h_pt = (img_h / dpi) * 72.0f;
+
+                // Fit image into A4 while maintaining aspect ratio
+                float scale_x = A4_W / img_w_pt;
+                float scale_y = A4_H / img_h_pt;
+                float scale = fminf(scale_x, scale_y);
+
+                // Final scaled image size (optional)
+                float final_w = img_w_pt * scale;
+                float final_h = img_h_pt * scale;
+                
+                float offset_x = (A4_W - final_w) / 2.0f;
+                float offset_y = (A4_H - final_h) / 2.0f;
+
+                m = fz_translate(offset_x, offset_y);
+                m = fz_concat(fz_scale(final_w , final_h), m); 
+            } else {
+                page_rect = fz_make_rect(0, 0, (float)img_w, (float)img_h);
+                m = fz_scale((float)img_w, (float)img_h);
+            }
+
             fz_device* dev = fz_begin_page(ctx, writer, page_rect);
-
-            // Correct transformation matrix
-            fz_matrix m = fz_scale((float)img_w, (float)img_h);
-
             fz_fill_image(ctx, dev, img, m, 1.0f, fz_default_color_params);
-
-
             fz_end_page(ctx, writer);
             fz_drop_image(ctx, img);
         } fz_catch(ctx) {
@@ -87,9 +118,11 @@ Java_com_bluepdf_blue_1pdf_MainActivity_imageToPdfNative(JNIEnv* env, jobject,
 
     fz_drop_context(ctx);
     env->ReleaseStringUTFChars(cacheDir, dir);
+    env->ReleaseStringUTFChars(pageSizeMode, mode);
 
     return env->NewStringUTF(outputPath.c_str());
 }
+
 
 
 // --- MERGE PDF --- WORKING

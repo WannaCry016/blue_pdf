@@ -21,7 +21,7 @@ class MainActivity : FlutterActivity() {
     }
 
     // Native function declarations
-    private external fun imageToPdfNative(imagePaths: Array<String>, cacheDir: String): String
+    private external fun imageToPdfNative(imagePaths: Array<String>, cacheDir: String, pageMode: String): String
     private external fun mergePdfNative(pdfPaths: Array<String>, cacheDir: String): String
     private external fun encryptPdfNative(pdfPath: String, password: String, cacheDir: String): String
     private external fun splitPdfNative(path: String, pages: List<Int>, cacheDir: String): String
@@ -41,12 +41,13 @@ class MainActivity : FlutterActivity() {
             when (call.method) {
                 "imageToPdf" -> {
                     val imagePaths = call.argument<List<String>>("paths")?.toTypedArray() ?: emptyArray()
+                    val pageMode = call.argument<String>("pageMode") ?: "A4"
                     val cacheDir = applicationContext.cacheDir.absolutePath
                     
                     scope.launch {
                         try {
                             val pdfPath = withContext(Dispatchers.IO) {
-                                imageToPdfNative(imagePaths, cacheDir)
+                                imageToPdfNative(imagePaths, cacheDir, pageMode)
                             }
                             result.success(pdfPath)
                         } catch (e: Exception) {
