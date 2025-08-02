@@ -63,9 +63,11 @@ Java_com_bluepdf_blue_1pdf_MainActivity_imageToPdfNative(JNIEnv* env, jobject,
             fz_rect page_rect = fz_make_rect(0, 0, (float)img_w, (float)img_h);
             fz_device* dev = fz_begin_page(ctx, writer, page_rect);
 
-            // Identity matrix: draw image at 1:1 size (no scaling, no offset)
-            fz_matrix m = fz_identity;
+            // Correct transformation matrix
+            fz_matrix m = fz_scale((float)img_w, (float)img_h);
+
             fz_fill_image(ctx, dev, img, m, 1.0f, fz_default_color_params);
+
 
             fz_end_page(ctx, writer);
             fz_drop_image(ctx, img);
