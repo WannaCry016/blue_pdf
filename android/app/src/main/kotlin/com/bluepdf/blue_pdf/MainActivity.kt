@@ -24,9 +24,12 @@ class MainActivity : FlutterActivity() {
     private external fun imageToPdfNative(imagePaths: Array<String>, cacheDir: String, pageMode: String): String
     private external fun mergePdfNative(pdfPaths: Array<String>, cacheDir: String): String
     private external fun encryptPdfNative(pdfPath: String, password: String, cacheDir: String): String
-    private external fun splitPdfNative(path: String, pages: List<Int>, cacheDir: String): String
+    private external fun splitPdfNative(path: String, pages: List<Int>, cacheDir: String, outputFilename: String): String
     private external fun reorderPdfNative(inputPath: String, cacheDir: String): Array<String>
-    external fun isPdfEncryptedNative(inputPath: String): Boolean
+    private external fun isPdfEncryptedNative(inputPath: String): Boolean
+    private external fun renderPdfPageNative(inputPath: String, pageNumber: Int, cacheDir: String): String
+    private external fun getPdfPageCountNative(pdfPath: String): Int
+
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -119,7 +122,7 @@ class MainActivity : FlutterActivity() {
                             }
 
                             val res = withContext(Dispatchers.IO) {
-                                splitPdfNative(path, pages, cacheDir)
+                                splitPdfNative(path, pages, cacheDir, "split_pdf.pdf")
                             }
                             result.success(res)
                         } catch (e: Exception) {
@@ -148,26 +151,82 @@ class MainActivity : FlutterActivity() {
                                 return@launch
                             }
 
-                            // Native call returns String[] directly
-                            val imagePaths = withContext(Dispatchers.IO) {
-                                reorderPdfNative(inputPath, cacheDir)
+                            val totalPages = withContext(Dispatchers.IO) {
+                                getPdfPageCountNative(inputPath)
                             }
 
-                            // Convert Array<String> to List<String> for Flutter
-                            if (imagePaths != null && imagePaths.isNotEmpty()) {
-                                Log.d("MainActivity", "Got ${imagePaths.size} image paths from native code")
-                                // Explicitly convert to List<String> to ensure type safety
-                                val stringList = imagePaths.map { it.toString() }
-                                result.success(stringList)
-                            } else {
-                                Log.e("MainActivity", "Native code returned null or empty array")
-                                result.error("REORDER_FAILED", "Failed to get image paths from native code", null)
+                            val splitPaths = mutableListOf<String>()
+
+                            for (i in 1..totalPages){
+                                val singlePageList = listOf(i)
+                                val filename = "page_$i.pdf"
+
+                                val path = withContext(Dispatchers.IO) {
+                                    splitPdfNative(inputPath, singlePageList, cacheDir, filename)
+                                }
+
+                                if (path != null && path.isNotBlank()) {
+                                    splitPaths.add(path)
+                                } else {
+                                    Log.e("MainActivity", "Failed to split page $i")
+                                }
                             }
+
+                            if (splitPaths.isNotEmpty()) {
+                                result.success(splitPaths)
+                            } else {
+                                result.error("REORDER_FAILED", "No split pages were generated", null)
+                            }
+
                         } catch (e: Exception) {
                             result.error("REORDER_FAILED", e.message, null)
                         }
                     }
                 }
+
+                "renderPdfPage" -> {
+                    val pdfPath = call.argument<String>("pdfPath")
+                    val pageIndex = call.argument<Int>("pageIndex") ?: 0
+                    val cacheDir = applicationContext.cacheDir.absolutePath
+
+                    if (pdfPath == null) {
+                        result.error("INVALID_ARGUMENT", "pdfPath is null", null)
+                        return@setMethodCallHandler
+                    }
+
+                    scope.launch {
+                        try {
+                            val outputImagePath = withContext(Dispatchers.IO) {
+                                renderPdfPageNative(pdfPath, pageIndex, cacheDir)
+                            }
+
+                            if (outputImagePath != null && outputImagePath.isNotEmpty()) {
+                                result.success(outputImagePath)
+                            } else {
+                                result.error("RENDER_FAILED", "Failed to render page", null)
+                            }
+                        } catch (e: Exception) {
+                            result.error("RENDER_FAILED", e.message, null)
+                        }
+                    }
+                }
+
+                "getPdfPageCount" -> {
+                    val pdfPath = call.argument<String>("pdfPath")
+
+                    if (pdfPath == null) {
+                        result.error("INVALID_ARGUMENT", "pdfPath is null", null)
+                        return@setMethodCallHandler
+                    }
+
+                    try {
+                        val pageCount = getPdfPageCountNative(pdfPath)
+                        result.success(pageCount)
+                    } catch (e: Exception) {
+                        result.error("GET_PAGE_COUNT_FAILED", e.message, null)
+                    }
+                }
+
 
                 else -> result.notImplemented()
             }

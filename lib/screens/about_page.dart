@@ -196,14 +196,7 @@ class AboutPage extends StatelessWidget {
           ),
           Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
           ListTile(
-            leading: const Icon(Icons.star_rate_outlined, color: Colors.amber),
-            title: Text("Rate Us", style: TextStyle(fontSize: 14.5, color: textColor)),
-            trailing: const Icon(Icons.arrow_forward_ios, size: 14),
-            onTap: () => _launchURL("https://play.google.com/store/apps/details?id=com.bluepdf.blue_pdf"),
-          ),
-          Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
-          ListTile(
-            leading: Icon(Icons.local_convenience_store, color: Colors.blueGrey.shade300),
+            leading: Icon(Icons.verified_user, color: Colors.blueGrey.shade300),
             title: Text("License", style: TextStyle(fontSize: 14.5, color: textColor)),
             trailing: const Icon(Icons.arrow_forward_ios, size: 14),
             onTap: () {
@@ -212,6 +205,13 @@ class AboutPage extends StatelessWidget {
                 MaterialPageRoute(builder: (context) => const LicensePage()),
               );
             },
+          ),
+          Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
+          ListTile(
+            leading: const Icon(Icons.star_rate_outlined, color: Colors.amber),
+            title: Text("Rate Us", style: TextStyle(fontSize: 14.5, color: textColor)),
+            trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+            onTap: () => _launchURL("https://play.google.com/store/apps/details?id=com.bluepdf.blue_pdf"),
           ),
         ],
       ),

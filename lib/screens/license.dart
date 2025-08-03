@@ -20,7 +20,7 @@ class LicensePage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         iconTheme: const IconThemeData(color: Colors.white),
-        title: const Text("License"),
+        title: const Text("Licenses"),
         titleTextStyle: const TextStyle(
           color: Colors.white,
           fontSize: 18,
@@ -51,47 +51,78 @@ class LicensePage extends StatelessWidget {
           elevation: 4,
           child: Padding(
             padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: ListView(
               children: [
                 Text(
                   "Blue PDF",
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: textColor),
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: textColor,
+                  ),
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  "An open-source PDF utility app that lets you merge, split, encrypt, and convert images to PDF files with ease.",
-                  style: TextStyle(fontSize: 16, color: secondaryTextColor),
+                  "Blue PDF is an open-source utility that helps you merge, split, encrypt, and convert images to PDFs with ease.",
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: secondaryTextColor,
+                  ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
                 Text(
                   "Open Source Licenses",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: accent),
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: accent,
+                  ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
+
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   title: Text("MuPDF", style: TextStyle(color: textColor)),
                   subtitle: Text(
-                    "Used for PDF operations.\nLicensed under AGPL v3.",
+                    "MuPDF is a lightweight PDF/XPS toolkit.\n\n"
+                    "© 2006–2024 Artifex Software, Inc.\n"
+                    "Licensed under the GNU Affero General Public License (AGPL) v3.\n\n"
+                    "Blue PDF uses only the core MuPDF C/C++ libraries.\nUI/viewer components are excluded.",
                     style: TextStyle(color: secondaryTextColor),
                   ),
                   trailing: Icon(Icons.open_in_new, color: accent),
-                  onTap: () {
-                    launchUrl(Uri.parse("https://mupdf.com"));
-                  },
+                  onTap: () => launchUrl(Uri.parse("https://mupdf.com")),
                 ),
+
+                const SizedBox(height: 24),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   title: Text("Source Code", style: TextStyle(color: textColor)),
                   subtitle: Text(
-                    "GitHub Repository",
+                    "This app is open-source under the AGPL v3 license.\nView and contribute to the source code below.",
                     style: TextStyle(color: secondaryTextColor),
                   ),
                   trailing: Icon(Icons.code, color: accent),
-                  onTap: () {
-                    launchUrl(Uri.parse("https://github.com/WannaCry016/blue_pdf"));
-                  },
+                  onTap: () => launchUrl(Uri.parse("https://github.com/WannaCry016/blue_pdf")),
+                ),
+
+                const SizedBox(height: 24),
+                Text(
+                  "License Compliance",
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: accent,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  "To comply with AGPL v3, Blue PDF provides:\n"
+                  "• Clear notice of MuPDF usage and licensing.\n"
+                  "• Access to the full source code.\n"
+                  "• No modification of MuPDF license terms.\n\n"
+                  "Redistributors must adhere to AGPL v3 obligations.",
+                  style: TextStyle(fontSize: 14.5, color: secondaryTextColor),
                 ),
               ],
             ),
@@ -101,10 +132,3 @@ class LicensePage extends StatelessWidget {
     );
   }
 }
-
-// MuPDF License Notice
-
-// This app uses the MuPDF library, © Artifex Software Inc.
-// MuPDF is licensed under the GNU Affero General Public License (AGPL) v3.
-// We only use the MuPDF C/C++ library for PDF processing.
-// We do not use MuPDF’s viewer or UI components.

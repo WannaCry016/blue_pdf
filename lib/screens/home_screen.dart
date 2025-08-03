@@ -2,6 +2,7 @@
 import 'dart:io';
 import 'dart:ui';
 import 'package:blue_pdf/main.dart';
+import 'package:blue_pdf/screens/split_view.dart';
 import 'package:blue_pdf/services/pdf_encryptor.dart';
 import 'package:blue_pdf/services/update_service.dart';
 import 'package:flutter/foundation.dart';
@@ -166,48 +167,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         initialCachePath = await encryptPdfNative(filePaths.first, password); 
       } else if (selectedTool == 'Split PDF') {
         // Prompt for page range
-        final range = await showDialog<Map<String, int>>(
-          context: context,
-          builder: (context) {
-            final startController = TextEditingController();
-            final endController = TextEditingController();
-            return AlertDialog(
-              title: const Text('Split PDF'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: startController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: 'Start Page'),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: endController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: 'End Page'),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context, null),
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    final start = int.tryParse(startController.text.trim());
-                    final end = int.tryParse(endController.text.trim());
-                    if (start != null && end != null) {
-                      Navigator.pop(context, {'start': start, 'end': end});
-                    }
-                  },
-                  child: const Text('Split'),
-                ),
-              ],
-            );
-          },
-        );
+        final range = await SplitPdfDialog.show(context, filePaths.first);
         if (range == null) {
           Navigator.pop(context); // Dismiss loading dialog
           ref.read(isProcessingProvider.notifier).state = false;
@@ -220,9 +180,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         // For consistency, set initialCachePath to the first output (or handle as needed)
         initialCachePath = outputPaths;
       } else if (selectedTool == 'Reorder PDF') {
-        // Use imageToPdfNative to convert reordered images back to PDF
-        final pageMode = "FIT";
-        initialCachePath = await imageToPdfNative(filePaths, pageMode);
+        initialCachePath = await mergePdfNative(filePaths);
       }
 
       if (initialCachePath == null) {

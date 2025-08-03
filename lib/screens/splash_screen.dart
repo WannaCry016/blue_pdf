@@ -1,4 +1,5 @@
 import 'package:blue_pdf/screens/home_screen.dart';
+import 'package:blue_pdf/screens/onbaording_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -13,16 +14,24 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(seconds: 2), () async {
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const HomeScreen(),
-          ),
-        );
-      }
-    });
+    _navigateNext();
+  }
+
+  Future<void> _navigateNext() async {
+    await Future.delayed(const Duration(seconds: 2));
+
+    final prefs = await SharedPreferences.getInstance();
+    final seenOnboarding = prefs.getBool('seenOnboarding') ?? false;
+
+    if (!mounted) return;
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            seenOnboarding ? const HomeScreen() : OnboardingScreen(),
+      ),
+    );
   }
 
   @override
@@ -46,7 +55,7 @@ class _SplashScreenState extends State<SplashScreen> {
             padding: EdgeInsets.only(bottom: 20),
             child: Center(
               child: Text(
-                "Blue PDF • Version v1.0.0",
+                "Blue PDF • Version v1.0.2",
                 style: TextStyle(
                   color: Colors.white60,
                   fontSize: 13.5,
