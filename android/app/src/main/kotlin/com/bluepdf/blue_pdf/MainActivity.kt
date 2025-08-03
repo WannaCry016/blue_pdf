@@ -26,7 +26,10 @@ class MainActivity : FlutterActivity() {
     private external fun encryptPdfNative(pdfPath: String, password: String, cacheDir: String): String
     private external fun splitPdfNative(path: String, pages: List<Int>, cacheDir: String): String
     private external fun reorderPdfNative(inputPath: String, cacheDir: String): Array<String>
-    external fun isPdfEncryptedNative(inputPath: String): Boolean
+    private external fun isPdfEncryptedNative(inputPath: String): Boolean
+    private external fun renderPdfPageNative(inputPath: String, pageNumber: Int, cacheDir: String): String
+    private external fun getPdfPageCountNative(pdfPath: String): Int
+
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -168,6 +171,49 @@ class MainActivity : FlutterActivity() {
                         }
                     }
                 }
+                "renderPdfPage" -> {
+                    val pdfPath = call.argument<String>("pdfPath")
+                    val pageIndex = call.argument<Int>("pageIndex") ?: 0
+                    val cacheDir = applicationContext.cacheDir.absolutePath
+
+                    if (pdfPath == null) {
+                        result.error("INVALID_ARGUMENT", "pdfPath is null", null)
+                        return@setMethodCallHandler
+                    }
+
+                    scope.launch {
+                        try {
+                            val outputImagePath = withContext(Dispatchers.IO) {
+                                renderPdfPageNative(pdfPath, pageIndex, cacheDir)
+                            }
+
+                            if (outputImagePath != null && outputImagePath.isNotEmpty()) {
+                                result.success(outputImagePath)
+                            } else {
+                                result.error("RENDER_FAILED", "Failed to render page", null)
+                            }
+                        } catch (e: Exception) {
+                            result.error("RENDER_FAILED", e.message, null)
+                        }
+                    }
+                }
+
+                "getPdfPageCount" -> {
+                    val pdfPath = call.argument<String>("pdfPath")
+
+                    if (pdfPath == null) {
+                        result.error("INVALID_ARGUMENT", "pdfPath is null", null)
+                        return@setMethodCallHandler
+                    }
+
+                    try {
+                        val pageCount = getPdfPageCountNative(pdfPath)
+                        result.success(pageCount)
+                    } catch (e: Exception) {
+                        result.error("GET_PAGE_COUNT_FAILED", e.message, null)
+                    }
+                }
+
 
                 else -> result.notImplemented()
             }

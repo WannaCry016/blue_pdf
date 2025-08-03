@@ -484,5 +484,185 @@ Java_com_bluepdf_blue_1pdf_MainActivity_reorderPdfNative(JNIEnv* env, jobject th
     return result;
 }
 
+// RENDER PDF PAGE
+extern "C"
+JNIEXPORT jstring JNICALL
+Java_com_bluepdf_blue_1pdf_MainActivity_renderPdfPageNative(
+        JNIEnv *env, jobject thiz,
+        jstring inputPath,
+        jint pageNumber,
+        jstring cacheDir) {
 
+    const char* input_cstr = env->GetStringUTFChars(inputPath, nullptr);
+    const char* cacheDir_cstr = env->GetStringUTFChars(cacheDir, nullptr);
+    std::string inputFile(input_cstr);
+    std::string cacheDirStr(cacheDir_cstr);
 
+    env->ReleaseStringUTFChars(inputPath, input_cstr);
+    env->ReleaseStringUTFChars(cacheDir, cacheDir_cstr);
+
+    fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
+    if (!ctx) {
+        LOGI("Failed to create MuPDF context");
+        return env->NewStringUTF("");
+    }
+
+    fz_register_document_handlers(ctx);
+    fz_set_aa_level(ctx, 8);
+    fz_set_text_aa_level(ctx, 8);
+
+    fz_document* doc = nullptr;
+    fz_try(ctx) {
+        doc = fz_open_document(ctx, inputFile.c_str());
+    } fz_catch(ctx) {
+        LOGI("Failed to open document");
+        fz_drop_context(ctx);
+        return env->NewStringUTF("");
+    }
+
+    int totalPages = fz_count_pages(ctx, doc);
+    if (pageNumber < 0 || pageNumber >= totalPages) {
+        fz_drop_document(ctx, doc);
+        fz_drop_context(ctx);
+        return env->NewStringUTF("");
+    }
+
+    fz_page* page = nullptr;
+    fz_pixmap* pix = nullptr;
+    fz_device* dev = nullptr;
+    std::string outPath;
+
+    float scaleFactor = 2.0f;
+
+    fz_try(ctx) {
+        page = fz_load_page(ctx, doc, pageNumber);
+        fz_rect bounds = fz_bound_page(ctx, page);
+        fz_matrix ctm = fz_scale(scaleFactor, scaleFactor);
+        fz_irect bbox = fz_round_rect(fz_transform_rect(bounds, ctm));
+
+        pix = fz_new_pixmap_with_bbox(ctx, fz_device_rgb(ctx), bbox, nullptr, 0);
+        fz_clear_pixmap_with_value(ctx, pix, 0xFF);
+
+        dev = fz_new_draw_device(ctx, fz_identity, pix);
+        fz_run_page(ctx, page, dev, ctm, nullptr);
+        fz_close_device(ctx, dev);
+
+        outPath = cacheDirStr + "/page_" + std::to_string(pageNumber + 1) + ".png";
+        fz_save_pixmap_as_png(ctx, pix, outPath.c_str());
+
+    } fz_always(ctx) {
+        if (dev) fz_drop_device(ctx, dev);
+        if (pix) fz_drop_pixmap(ctx, pix);
+        if (page) fz_drop_page(ctx, page);
+    } fz_catch(ctx) {
+        LOGI("Error rendering page %d", pageNumber);
+        outPath = "";
+    }
+
+    fz_drop_document(ctx, doc);
+    fz_drop_context(ctx);
+
+    return env->NewStringUTF(outPath.c_str());
+}
+
+// PDF PAGE COUNT
+extern "C"
+JNIEXPORT jint JNICALL
+Java_com_bluepdf_blue_1pdf_MainActivity_getPdfPageCountNative(JNIEnv *env, jobject /* this */,
+                                                              jstring pdfPath_) {
+    // Input validation
+    if (!pdfPath_) {
+        LOGI("Error: PDF path is null");
+        return -1;
+    }
+
+    const char *pdfPath = env->GetStringUTFChars(pdfPath_, 0);
+    if (!pdfPath) {
+        LOGI("Error: Failed to get UTF chars from PDF path");
+        return -1;
+    }
+
+    LOGI("Attempting to get page count for PDF: %s", pdfPath);
+
+    // Create MuPDF context
+    fz_context *ctx = fz_new_context(NULL, NULL, FZ_STORE_UNLIMITED);
+    if (!ctx) {
+        LOGI("Error: Failed to create MuPDF context");
+        env->ReleaseStringUTFChars(pdfPath_, pdfPath);
+        return -1;
+    }
+
+    LOGI("MuPDF context created successfully");
+
+    jint pageCount = -1;
+    fz_document *doc = NULL;
+
+    fz_try(ctx) {
+        LOGI("Registering document handlers...");
+        fz_register_document_handlers(ctx);
+        LOGI("Document handlers registered successfully");
+
+        LOGI("Opening PDF document: %s", pdfPath);
+        doc = fz_open_document(ctx, pdfPath);
+        if (!doc) {
+            LOGI("Error: Failed to open PDF document - document is null");
+            fz_throw(ctx, FZ_ERROR_GENERIC, "Document is null after opening");
+        }
+        LOGI("PDF document opened successfully");
+
+        LOGI("Counting pages...");
+        pageCount = fz_count_pages(ctx, doc);
+        LOGI("Page count retrieved successfully: %d pages", pageCount);
+
+        // Validate page count
+        if (pageCount <= 0) {
+            LOGI("Warning: Invalid page count returned: %d", pageCount);
+            pageCount = -1;
+        }
+
+    }
+    fz_catch(ctx) {
+        const char *error_msg = fz_caught_message(ctx);
+        int error_code = fz_caught(ctx);
+        LOGI("Error in MuPDF operation - Code: %d, Message: %s", error_code, error_msg ? error_msg : "Unknown error");
+        
+        // Log specific error types
+        switch (error_code) {
+            case FZ_ERROR_GENERIC:
+                LOGI("Error type: Generic error");
+                break;
+            case FZ_ERROR_SYNTAX:
+                LOGI("Error type: Syntax error in PDF");
+                break;
+            case FZ_ERROR_TRYLATER:
+                LOGI("Error type: Try later (resource busy)");
+                break;
+            case FZ_ERROR_ABORT:
+                LOGI("Error type: Operation aborted");
+                break;
+            default:
+                LOGI("Error type: Unknown error code %d", error_code);
+                break;
+        }
+        
+        pageCount = -1;
+    }
+
+    // Cleanup
+    if (doc) {
+        LOGI("Dropping document...");
+        fz_drop_document(ctx, doc);
+        LOGI("Document dropped successfully");
+    }
+
+    LOGI("Dropping MuPDF context...");
+    fz_drop_context(ctx);
+    LOGI("MuPDF context dropped successfully");
+
+    // Release JNI string
+    env->ReleaseStringUTFChars(pdfPath_, pdfPath);
+    LOGI("JNI string resources released");
+
+    LOGI("Final result - Page count: %d", pageCount);
+    return pageCount;
+}
