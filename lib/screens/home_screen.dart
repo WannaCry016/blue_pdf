@@ -180,9 +180,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         // For consistency, set initialCachePath to the first output (or handle as needed)
         initialCachePath = outputPaths;
       } else if (selectedTool == 'Reorder PDF') {
-        // Use imageToPdfNative to convert reordered images back to PDF
-        final pageMode = "FIT";
-        initialCachePath = await imageToPdfNative(filePaths, pageMode);
+        initialCachePath = await mergePdfNative(filePaths);
       }
 
       if (initialCachePath == null) {

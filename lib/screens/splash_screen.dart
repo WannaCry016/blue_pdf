@@ -46,7 +46,7 @@ class _SplashScreenState extends State<SplashScreen> {
             padding: EdgeInsets.only(bottom: 20),
             child: Center(
               child: Text(
-                "Blue PDF • Version v1.0.0",
+                "Blue PDF • Version v1.0.2",
                 style: TextStyle(
                   color: Colors.white60,
                   fontSize: 13.5,

@@ -55,59 +55,73 @@ class LicensePage extends StatelessWidget {
               children: [
                 Text(
                   "Blue PDF",
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: textColor),
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: textColor,
+                  ),
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  "Blue PDF is an open-source utility application that enables users to perform essential PDF operations such as merging, splitting, encrypting, and converting images to PDF.",
-                  style: TextStyle(fontSize: 16, color: secondaryTextColor),
+                  "Blue PDF is an open-source utility that helps you merge, split, encrypt, and convert images to PDFs with ease.",
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: secondaryTextColor,
+                  ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
                 Text(
                   "Open Source Licenses",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: accent),
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: accent,
+                  ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
 
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   title: Text("MuPDF", style: TextStyle(color: textColor)),
                   subtitle: Text(
-                    "MuPDF is a lightweight PDF and XPS viewer and toolkit.\n\n"
+                    "MuPDF is a lightweight PDF/XPS toolkit.\n\n"
                     "© 2006–2024 Artifex Software, Inc.\n"
                     "Licensed under the GNU Affero General Public License (AGPL) v3.\n\n"
-                    "Blue PDF uses only the core MuPDF C/C++ libraries for PDF manipulation.\n"
-                    "It does *not* include MuPDF’s UI or viewer components.",
+                    "Blue PDF uses only the core MuPDF C/C++ libraries.\nUI/viewer components are excluded.",
                     style: TextStyle(color: secondaryTextColor),
                   ),
                   trailing: Icon(Icons.open_in_new, color: accent),
                   onTap: () => launchUrl(Uri.parse("https://mupdf.com")),
                 ),
 
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   title: Text("Source Code", style: TextStyle(color: textColor)),
                   subtitle: Text(
-                    "This app is open-source under the same AGPL v3 license.\nYou can view and contribute to the source code below.",
+                    "This app is open-source under the AGPL v3 license.\nView and contribute to the source code below.",
                     style: TextStyle(color: secondaryTextColor),
                   ),
                   trailing: Icon(Icons.code, color: accent),
                   onTap: () => launchUrl(Uri.parse("https://github.com/WannaCry016/blue_pdf")),
                 ),
 
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
                 Text(
                   "License Compliance",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: accent),
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: accent,
+                  ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
                 Text(
-                  "In compliance with the AGPL v3 license, we provide:\n"
-                  "• A clear notice of MuPDF usage and licensing.\n"
+                  "To comply with AGPL v3, Blue PDF provides:\n"
+                  "• Clear notice of MuPDF usage and licensing.\n"
                   "• Access to the full source code.\n"
-                  "• No modification of MuPDF license or terms.\n\n"
-                  "If you distribute this app or derivative works, you must also follow the AGPL v3 requirements.",
+                  "• No modification of MuPDF license terms.\n\n"
+                  "Redistributors must adhere to AGPL v3 obligations.",
                   style: TextStyle(fontSize: 14.5, color: secondaryTextColor),
                 ),
               ],

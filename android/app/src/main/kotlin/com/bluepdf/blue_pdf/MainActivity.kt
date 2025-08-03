@@ -24,7 +24,7 @@ class MainActivity : FlutterActivity() {
     private external fun imageToPdfNative(imagePaths: Array<String>, cacheDir: String, pageMode: String): String
     private external fun mergePdfNative(pdfPaths: Array<String>, cacheDir: String): String
     private external fun encryptPdfNative(pdfPath: String, password: String, cacheDir: String): String
-    private external fun splitPdfNative(path: String, pages: List<Int>, cacheDir: String): String
+    private external fun splitPdfNative(path: String, pages: List<Int>, cacheDir: String, outputFilename: String): String
     private external fun reorderPdfNative(inputPath: String, cacheDir: String): Array<String>
     private external fun isPdfEncryptedNative(inputPath: String): Boolean
     private external fun renderPdfPageNative(inputPath: String, pageNumber: Int, cacheDir: String): String
@@ -122,7 +122,7 @@ class MainActivity : FlutterActivity() {
                             }
 
                             val res = withContext(Dispatchers.IO) {
-                                splitPdfNative(path, pages, cacheDir)
+                                splitPdfNative(path, pages, cacheDir, "split_pdf.pdf")
                             }
                             result.success(res)
                         } catch (e: Exception) {
@@ -151,26 +151,39 @@ class MainActivity : FlutterActivity() {
                                 return@launch
                             }
 
-                            // Native call returns String[] directly
-                            val imagePaths = withContext(Dispatchers.IO) {
-                                reorderPdfNative(inputPath, cacheDir)
+                            val totalPages = withContext(Dispatchers.IO) {
+                                getPdfPageCountNative(inputPath)
                             }
 
-                            // Convert Array<String> to List<String> for Flutter
-                            if (imagePaths != null && imagePaths.isNotEmpty()) {
-                                Log.d("MainActivity", "Got ${imagePaths.size} image paths from native code")
-                                // Explicitly convert to List<String> to ensure type safety
-                                val stringList = imagePaths.map { it.toString() }
-                                result.success(stringList)
-                            } else {
-                                Log.e("MainActivity", "Native code returned null or empty array")
-                                result.error("REORDER_FAILED", "Failed to get image paths from native code", null)
+                            val splitPaths = mutableListOf<String>()
+
+                            for (i in 1..totalPages){
+                                val singlePageList = listOf(i)
+                                val filename = "page_$i.pdf"
+
+                                val path = withContext(Dispatchers.IO) {
+                                    splitPdfNative(inputPath, singlePageList, cacheDir, filename)
+                                }
+
+                                if (path != null && path.isNotBlank()) {
+                                    splitPaths.add(path)
+                                } else {
+                                    Log.e("MainActivity", "Failed to split page $i")
+                                }
                             }
+
+                            if (splitPaths.isNotEmpty()) {
+                                result.success(splitPaths)
+                            } else {
+                                result.error("REORDER_FAILED", "No split pages were generated", null)
+                            }
+
                         } catch (e: Exception) {
                             result.error("REORDER_FAILED", e.message, null)
                         }
                     }
                 }
+
                 "renderPdfPage" -> {
                     val pdfPath = call.argument<String>("pdfPath")
                     val pageIndex = call.argument<Int>("pageIndex") ?: 0

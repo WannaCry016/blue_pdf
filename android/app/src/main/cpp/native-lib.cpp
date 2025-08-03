@@ -311,7 +311,8 @@ extern "C" JNIEXPORT jstring JNICALL
 Java_com_bluepdf_blue_1pdf_MainActivity_splitPdfNative(JNIEnv* env, jobject,
                                                         jstring inputPath,
                                                         jobject pagesList,  // Changed to jobject to handle List
-                                                        jstring cacheDir) {
+                                                        jstring cacheDir,
+                                                    jstring outputFilename) {
     const char* input_cstr = env->GetStringUTFChars(inputPath, nullptr);
     const char* cacheDir_cstr = env->GetStringUTFChars(cacheDir, nullptr);
 
@@ -319,6 +320,16 @@ Java_com_bluepdf_blue_1pdf_MainActivity_splitPdfNative(JNIEnv* env, jobject,
     std::string cacheDirStr(cacheDir_cstr);
     env->ReleaseStringUTFChars(inputPath, input_cstr);
     env->ReleaseStringUTFChars(cacheDir, cacheDir_cstr);
+
+    std::string outputPath;
+    if (outputFilename != nullptr) {
+        const char* outputFilename_cstr = env->GetStringUTFChars(outputFilename, nullptr);
+        outputPath = cacheDirStr + "/" + outputFilename_cstr;
+        env->ReleaseStringUTFChars(outputFilename, outputFilename_cstr);
+    } else {
+        outputPath = cacheDirStr + "/split_output.pdf";
+    }
+
 
     // Get List class and methods
     jclass listClass = env->GetObjectClass(pagesList);
@@ -353,8 +364,6 @@ Java_com_bluepdf_blue_1pdf_MainActivity_splitPdfNative(JNIEnv* env, jobject,
 
     fz_document* doc = nullptr;
     fz_document_writer* writer = nullptr;
-
-    std::string outputPath = cacheDirStr + "/split_output.pdf";
 
     fz_try(ctx) {
         doc = fz_open_document(ctx, inputFile.c_str());
@@ -484,6 +493,7 @@ Java_com_bluepdf_blue_1pdf_MainActivity_reorderPdfNative(JNIEnv* env, jobject th
     return result;
 }
 
+
 // RENDER PDF PAGE
 extern "C"
 JNIEXPORT jstring JNICALL
@@ -532,7 +542,7 @@ Java_com_bluepdf_blue_1pdf_MainActivity_renderPdfPageNative(
     fz_device* dev = nullptr;
     std::string outPath;
 
-    float scaleFactor = 2.0f;
+    float scaleFactor = 1.0f;
 
     fz_try(ctx) {
         page = fz_load_page(ctx, doc, pageNumber);

@@ -31,7 +31,7 @@ android {
         applicationId = "com.bluepdf.blue_pdf"
         minSdk = 24
         targetSdk = flutter.targetSdkVersion
-        versionCode = 9
+        versionCode = 13
         versionName = "1.0.2"
 
         externalNativeBuild {

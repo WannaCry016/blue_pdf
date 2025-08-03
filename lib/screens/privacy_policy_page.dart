@@ -18,6 +18,9 @@ class PrivacyPolicyPage extends StatelessWidget {
     final Color cardColor = isDarkMode ? const Color.fromARGB(255, 29, 41, 51) : Colors.white;
     final Color textColor = isDarkMode ? Colors.white70 : Colors.black87;
     final Color headingColor = isDarkMode ? _accentBlue : _primaryBlue;
+    final gradientColors = isDarkMode
+        ? [const Color(0xFF2979FF), const Color(0xFF536DFE), const Color(0xFF00B8D4)]
+        : [const Color(0xFF0D47A1), const Color(0xFF1976D2)];
 
     return Scaffold(
       backgroundColor: backgroundColor,
@@ -32,10 +35,12 @@ class PrivacyPolicyPage extends StatelessWidget {
           fontWeight: FontWeight.w600,
         ),
         centerTitle: true,
+        elevation: 0,
+        backgroundColor: Colors.transparent,
         flexibleSpace: Container(
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: [_primaryBlue, _accentBlue],
+              colors: gradientColors,
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
