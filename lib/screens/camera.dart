@@ -8,60 +8,67 @@ import 'package:blue_pdf/state_providers.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:pro_image_editor/pro_image_editor.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart'; 
 
 class CameraButton extends ConsumerWidget {
   final double iconSize;
   const CameraButton({super.key, this.iconSize = 36});
 
   Future<void> _startCaptureFlow(BuildContext context, WidgetRef ref) async {
-  bool result = false;
-  while (true) {
-    final capturedFile = await Navigator.push<File>(
-      context,
-      MaterialPageRoute(builder: (_) => CameraCaptureScreen(result:result)),
-    );
+    bool result = false;
+    while (true) {
+      final capturedFile = await Navigator.push<File>(
+        context,
+        MaterialPageRoute(builder: (_) => CameraCaptureScreen(result: result)),
+      );
 
-    if (capturedFile == null) break;
+      if (capturedFile == null) break;
 
-    final imageBytes = await capturedFile.readAsBytes();
+      final imageBytes = await capturedFile.readAsBytes();
 
-    result = (await Navigator.push<bool>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ProImageEditor.memory(
-          imageBytes,
-          callbacks: ProImageEditorCallbacks(
-            onImageEditingComplete: (Uint8List editedBytes) async {
-              final timestamp = DateTime.now().millisecondsSinceEpoch;
-              final fileName = 'BluePDF_$timestamp.jpg';
+      result = (await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ProImageEditor.memory(
+            imageBytes,
+            callbacks: ProImageEditorCallbacks(
+              onImageEditingComplete: (Uint8List editedBytes) async {
+                final timestamp = DateTime.now().millisecondsSinceEpoch;
+                final fileName = 'BluePDF_$timestamp.jpg';
 
-              final cacheDir = await getTemporaryDirectory();
-              final savedFile = await File('${cacheDir.path}/$fileName').writeAsBytes(editedBytes);
+                final cacheDir = await getTemporaryDirectory();
 
-              final picturesDir = Directory('/storage/emulated/0/Pictures/BluePDF');
-              if (!await picturesDir.exists()) {
-                await picturesDir.create(recursive: true);
-              }
-              await savedFile.copy(path.join(picturesDir.path, fileName));
+                // ✅ Fix orientation using flutter_image_compress
+                final fixedBytes = await FlutterImageCompress.compressWithList(
+                  editedBytes,
+                  autoCorrectionAngle: true,
+                  quality: 100,
+                );
 
-              final platformFile = PlatformFile(
-                name: fileName,
-                path: savedFile.path,
-                size: await savedFile.length(),
-              );
+                final savedFile = await File('${cacheDir.path}/$fileName').writeAsBytes(fixedBytes);
 
-              ref.read(imageToPdfFilesProvider.notifier).addFiles([platformFile]);
+                final picturesDir = Directory('/storage/emulated/0/Pictures/BluePDF');
+                if (!await picturesDir.exists()) {
+                  await picturesDir.create(recursive: true);
+                }
+                await savedFile.copy(path.join(picturesDir.path, fileName));
 
-              Navigator.pop(context, true); // ✅ Return true
-            },
+                final platformFile = PlatformFile(
+                  name: fileName,
+                  path: savedFile.path,
+                  size: await savedFile.length(),
+                );
+
+                ref.read(imageToPdfFilesProvider.notifier).addFiles([platformFile]);
+
+                Navigator.pop(context, true); // ✅ Return true
+              },
+            ),
           ),
         ),
-      ),
-    ))!;
-
+      ))!;
+    }
   }
-}
-
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
