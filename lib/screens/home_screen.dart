@@ -2,25 +2,25 @@
 import 'dart:io';
 import 'dart:ui';
 import 'package:blue_pdf/main.dart';
-import 'package:blue_pdf/screens/split_view.dart';
-import 'package:blue_pdf/services/pdf_encryptor.dart';
+import 'package:blue_pdf/components/split_view.dart';
+import 'package:blue_pdf/tools/pdf_encryptor.dart';
 import 'package:blue_pdf/services/update_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:open_filex/open_filex.dart';
-import 'camera.dart';
-import 'dropdown.dart';
+import '../components/camera.dart';
+import '../components/dropdown.dart';
 import 'process_success_screen.dart';
 import 'about_page.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'save_pdf.dart';
-import 'package:blue_pdf/services/image_to_pdf.dart';
-import 'package:blue_pdf/services/merge_pdf.dart';
-import 'package:blue_pdf/services/split_pdf.dart';
-import 'package:blue_pdf/services/reorder_pdf.dart';
+import '../components/save_pdf.dart';
+import 'package:blue_pdf/tools/image_to_pdf.dart';
+import 'package:blue_pdf/tools/merge_pdf.dart';
+import 'package:blue_pdf/tools/split_pdf.dart';
+import 'package:blue_pdf/tools/reorder_pdf.dart';
 import 'package:blue_pdf/state_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'grid_view_overlay.dart';
+import '../components/grid_view_overlay.dart';
 
 // Update dark color palette for more vibrant, attractive look
 const Color kDarkBg = Color(0xFF101A30);         // Deep navy

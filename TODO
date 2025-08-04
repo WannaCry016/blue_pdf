@@ -15,4 +15,4 @@ cd mupdf
 
 git submodule update --init --recursive
 
-cmd.exe /c "C:\Users\HP\AppData\Local\Android\Sdk\ndk\27.0.12077973\ndk-build.cmd" NDK_PROJECT_PATH=E:\PDF\blue_pdf\mupdf\platform\java APP_BUILD_SCRIPT=E:\PDF\blue_pdf\mupdf\platform\java\Android.mk
+cmd.exe /c "C:\Users\HP\AppData\Local\Android\Sdk\ndk\28.0.13004108\ndk-build.cmd" NDK_PROJECT_PATH=E:\PDF\blue_pdf\mupdf\platform\java APP_BUILD_SCRIPT=E:\PDF\blue_pdf\mupdf\platform\java\Android.mk
