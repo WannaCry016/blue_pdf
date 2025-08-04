@@ -94,6 +94,17 @@ class LicensePage extends StatelessWidget {
                   onTap: () => launchUrl(Uri.parse("https://mupdf.com")),
                 ),
 
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text("AGPL v3 License", style: TextStyle(color: textColor)),
+                  subtitle: Text(
+                    "View full text of the GNU Affero General Public License (AGPL) v3.",
+                    style: TextStyle(color: secondaryTextColor),
+                  ),
+                  trailing: Icon(Icons.description, color: accent),
+                  onTap: () => launchUrl(Uri.parse("https://www.gnu.org/licenses/agpl-3.0.html")),
+                ),
+
                 const SizedBox(height: 24),
                 ListTile(
                   contentPadding: EdgeInsets.zero,

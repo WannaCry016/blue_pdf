@@ -16,7 +16,7 @@ android {
 
     namespace = "com.bluepdf.blue_pdf"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = "27.0.12077973"
+    ndkVersion = "28.0.13004108"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -31,7 +31,7 @@ android {
         applicationId = "com.bluepdf.blue_pdf"
         minSdk = 24
         targetSdk = flutter.targetSdkVersion
-        versionCode = 16
+        versionCode = 20
         versionName = "1.0.2"
 
         externalNativeBuild {
@@ -80,6 +80,9 @@ android {
     }
 
     packagingOptions {
+        jniLibs {
+            useLegacyPackaging = false
+        }
         resources {
             excludes += setOf(
                 "META-INF/LICENSE",

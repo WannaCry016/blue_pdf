@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.4.1)
 
+# Put this at the top BEFORE add_library(...)
+set(CMAKE_ANDROID_PAGE_SIZE 16384)
+
 # Create shared library from your native C++ source
 add_library(native-lib SHARED native-lib.cpp)
 

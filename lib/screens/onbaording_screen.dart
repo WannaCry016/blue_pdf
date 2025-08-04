@@ -19,7 +19,32 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       body: SafeArea(
         child: Stack(
           children: [
-            // Skip button
+            // PageView should be at the bottom of the stack
+            PageView(
+              controller: _controller,
+              onPageChanged: (index) {
+                setState(() => isLastPage = index == 4);
+              },
+              children: [
+                _buildPage(
+                  "assets/3.jpg",
+                  "Welcome to Blue PDF!",
+                  "Thanks for downloading! Follow this quick tutorial to get started with all the amazing features.",
+                  Colors.blue,
+                ),
+                _buildImageOnlyPage("assets/t1.png"),
+                _buildImageOnlyPage("assets/t2.png"),
+                _buildImageOnlyPage("assets/t3.png"),
+                _buildPage(
+                  "assets/4.jpg",
+                  "You're All Set!",
+                  "Everything is ready! Start exploring Blue PDF and discover all its powerful features.",
+                  Colors.indigo,
+                ),
+              ],
+            ),
+
+            // Skip button should come after to sit on top
             Positioned(
               top: 20,
               right: 20,
@@ -42,38 +67,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 ),
               ),
             ),
-            
-            // PageView
-            PageView(
-              controller: _controller,
-              onPageChanged: (index) {
-                setState(() => isLastPage = index == 4);
-              },
-              children: [
-                _buildPage(
-                  "assets/3.jpg",
-                  "Welcome to Blue PDF!",
-                  "Thanks for downloading! Follow this quick tutorial to get started with all the amazing features.",
-                  Colors.blue,
-                ),
-                _buildImageOnlyPage(
-                  "assets/t1.png",
-                ),
-                _buildImageOnlyPage(
-                  "assets/t2.png",
-                ),
-                _buildImageOnlyPage(
-                  "assets/t3.png",
-                ),
-                _buildPage(
-                  "assets/4.jpg",
-                  "You're All Set!",
-                  "Everything is ready! Start exploring Blue PDF and discover all its powerful features.",
-                  Colors.indigo,
-                ),
-              ],
-            ),
-            
+
             // Page Indicator
             Positioned(
               bottom: 140,
@@ -93,7 +87,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 ),
               ),
             ),
-            
+
             // Navigation Buttons
             Positioned(
               bottom: 40,
@@ -104,6 +98,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           ],
         ),
       ),
+
     );
   }
 

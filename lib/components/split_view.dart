@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:blue_pdf/services/render_page.dart';
-import 'package:blue_pdf/services/get_page_count.dart';
+import 'package:blue_pdf/tools/render_page.dart';
+import 'package:blue_pdf/tools/get_page_count.dart';
 
 class SplitPdfDialog extends StatefulWidget {
   final String pdfPath;

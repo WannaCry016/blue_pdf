@@ -1,7 +1,7 @@
-import 'package:blue_pdf/screens/privacy_policy_page.dart';
+import 'package:blue_pdf/components/privacy_policy_page.dart';
 import 'package:flutter/material.dart' hide LicensePage;
 import 'package:url_launcher/url_launcher.dart';
-import 'package:blue_pdf/screens/license.dart';
+import 'package:blue_pdf/components/license.dart';
 
 class AboutPage extends StatelessWidget {
   const AboutPage({super.key});

@@ -3,7 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:blue_pdf/screens/main_camera.dart';
+import 'package:blue_pdf/components/main_camera.dart';
 import 'package:blue_pdf/state_providers.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
@@ -37,25 +37,31 @@ class CameraButton extends ConsumerWidget {
                 final fileName = 'BluePDF_$timestamp.jpg';
 
                 final cacheDir = await getTemporaryDirectory();
+                final tempPath = path.join(cacheDir.path, fileName);
 
-                // ✅ Fix orientation using flutter_image_compress
+                // ✅ Fix orientation and compress image
                 final fixedBytes = await FlutterImageCompress.compressWithList(
                   editedBytes,
-                  autoCorrectionAngle: true,
+                  autoCorrectionAngle: true,  // 💡 ensures EXIF-based rotation is handled
+                  format: CompressFormat.jpeg,
                   quality: 100,
                 );
 
-                final savedFile = await File('${cacheDir.path}/$fileName').writeAsBytes(fixedBytes);
+                final savedFile = await File(tempPath).writeAsBytes(fixedBytes);
 
+                // ✅ Save to gallery folder
                 final picturesDir = Directory('/storage/emulated/0/Pictures/BluePDF');
                 if (!await picturesDir.exists()) {
                   await picturesDir.create(recursive: true);
                 }
-                await savedFile.copy(path.join(picturesDir.path, fileName));
 
+                final finalPath = path.join(picturesDir.path, fileName);
+                await savedFile.copy(finalPath);
+
+                // ✅ For your PDF logic
                 final platformFile = PlatformFile(
                   name: fileName,
-                  path: savedFile.path,
+                  path: savedFile.path, // use savedFile.path (cache) or finalPath (gallery)
                   size: await savedFile.length(),
                 );
 
