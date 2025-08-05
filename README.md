@@ -19,7 +19,7 @@ Optimized for Android using native rendering & parallel processing.
 
 ### ✨ Features at a Glance
 
-- 📄 **Merge, Split, Encrypt & Unlock PDFs**
+- 📄 **Merge, Split, Encrypt & Reorder PDFs**
 - 🖼️ **Image to PDF** with rotation and camera support
 - 🌙 **Dark/Light Theme** UI with grid/list views
 - 📦 **Compressed Output** and optimized memory usage
@@ -30,7 +30,7 @@ Optimized for Android using native rendering & parallel processing.
 ### 🛠 Tech Stack
 
 - **Flutter 3.8.1**, Riverpod, Material 3 UI  
-- **Kotlin**, PDFBox-Android, ProImageEditor  
+- **Kotlin**, ProImageEditor  
 - 📁 Supports PDF, JPG, PNG, GIF → Outputs PDF
 
 ---
