@@ -1,15 +1,16 @@
 # BLUE PDF — Open-Source PDF Tools for Android  
 
 <div align="center">  
-  <img src="assets/logo1.png" alt="BLUE PDF Logo" width="150">  
+  <img src="assets/logo1.png" alt="BLUE PDF Logo" width="220">  
 
-  <br><br>  
+  <br>  
 
   [![Flutter](https://img.shields.io/badge/Flutter-3.8.1-blue.svg)](https://flutter.dev/) 
   [![Platform](https://img.shields.io/badge/Android-21%2B-green.svg)](https://developer.android.com/) 
   [![License](https://img.shields.io/badge/License-AGPL--v3-red.svg)](LICENSE) 
   [![Version](https://img.shields.io/badge/Version-1.0.2-orange.svg)](pubspec.yaml)  
 </div>
+
 
 ---
 
