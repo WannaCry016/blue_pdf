@@ -1,4 +1,3 @@
-# BLUE PDF — Open-Source PDF Tools for Android  
 
 <div align="center">  
   <img src="assets/logo1.png" alt="BLUE PDF Logo" width="220">  
