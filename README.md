@@ -1,25 +1,24 @@
-
 <div align="center">  
-  <img src="assets/logo1.png" alt="BLUE PDF Logo" width="220">  
+  <img src="assets/logo1.png" alt="BLUE PDF Logo" width="200">
 
-  <br>  
+  <div style="margin-top: 8px;">
+    <a href="https://play.google.com/store/apps/details?id=com.bluepdf.blue_pdf">
+      <img 
+        alt="Get it on Google Play"
+        src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg"
+        width="190"
+      />
+    </a>
+  </div>
 
-  [![Flutter](https://img.shields.io/badge/Flutter-3.8.1-blue.svg)](https://flutter.dev/) 
-  [![Platform](https://img.shields.io/badge/Android-21%2B-green.svg)](https://developer.android.com/) 
-  [![License](https://img.shields.io/badge/License-AGPL--v3-red.svg)](LICENSE) 
-  [![Version](https://img.shields.io/badge/Version-1.0.2-orange.svg)](pubspec.yaml)  
+  <br>
 
-  <br><br>
-
-  <a href="https://play.google.com/store/apps/details?id=com.bluepdf.blue_pdf">
-    <img 
-      alt="Get it on Google Play"
-      src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg"
-      width="200"
-    />
-  </a>
-
+  [![Flutter](https://img.shields.io/badge/Flutter-3.8.1-blue.svg)](https://flutter.dev/)
+  [![Platform](https://img.shields.io/badge/Android-21%2B-green.svg)](https://developer.android.com/)
+  [![License](https://img.shields.io/badge/License-AGPL--v3-red.svg)](LICENSE)
+  [![Version](https://img.shields.io/badge/Version-1.0.2-orange.svg)](pubspec.yaml)
 </div>
+
 
 
 
