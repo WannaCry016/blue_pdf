@@ -8,7 +8,19 @@
   [![Platform](https://img.shields.io/badge/Android-21%2B-green.svg)](https://developer.android.com/) 
   [![License](https://img.shields.io/badge/License-AGPL--v3-red.svg)](LICENSE) 
   [![Version](https://img.shields.io/badge/Version-1.0.2-orange.svg)](pubspec.yaml)  
+
+  <br><br>
+
+  <a href="https://play.google.com/store/apps/details?id=com.bluepdf.blue_pdf">
+    <img 
+      alt="Get it on Google Play"
+      src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg"
+      width="200"
+    />
+  </a>
+
 </div>
+
 
 
 ---
