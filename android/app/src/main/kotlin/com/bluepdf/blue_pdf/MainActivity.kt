@@ -1,13 +1,10 @@
 package com.bluepdf.blue_pdf
 
-import android.os.Bundle
 import android.util.Log
-import java.io.File
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import kotlinx.coroutines.*
-import org.json.JSONArray
 
 class MainActivity : FlutterActivity() {
 
@@ -25,17 +22,9 @@ class MainActivity : FlutterActivity() {
     private external fun mergePdfNative(pdfPaths: Array<String>, cacheDir: String): String
     private external fun encryptPdfNative(pdfPath: String, password: String, cacheDir: String): String
     private external fun splitPdfNative(path: String, pages: List<Int>, cacheDir: String, outputFilename: String): String
-    private external fun reorderPdfNative(inputPath: String, cacheDir: String): Array<String>
     private external fun isPdfEncryptedNative(inputPath: String): Boolean
     private external fun renderPdfPageNative(inputPath: String, pageNumber: Int, cacheDir: String): String
     private external fun getPdfPageCountNative(pdfPath: String): Int
-
-
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        Log.d("NativeDemo", "MainActivity created")
-    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)

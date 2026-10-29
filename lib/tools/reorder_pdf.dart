@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 const _channel = MethodChannel('com.bluepdf.channel/pdf');
@@ -26,7 +27,7 @@ Future<List<String>> reorderPdfNative(String inputPath) async {
       throw Exception('Failed to reorder PDF: unexpected result type');
     }
   } on PlatformException catch (e) {
-    print("reorderPdfNative failed: ${e.message}");
+    debugPrint("reorderPdfNative failed: ${e.message}");
     rethrow;
   }
 }

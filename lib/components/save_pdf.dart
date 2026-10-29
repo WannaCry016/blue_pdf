@@ -29,8 +29,6 @@ class SavePdfOverlay extends ConsumerStatefulWidget {
 
 class _SavePdfOverlayState extends ConsumerState<SavePdfOverlay> {
   late TextEditingController _filenameController = TextEditingController();
-  late TextEditingController _passwordController = TextEditingController();
-  bool _encryptChecked = false;
 
   @override
   void initState() {
@@ -92,7 +90,7 @@ class _SavePdfOverlayState extends ConsumerState<SavePdfOverlay> {
         Navigator.pop(context, true); // return success
       }
     } catch (e) {
-      print("❌ Exception during save: $e");
+      debugPrint("❌ Exception during save: $e");
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -144,7 +142,7 @@ class _SavePdfOverlayState extends ConsumerState<SavePdfOverlay> {
           border: Border.all(color: borderColor, width: 1.2),
           boxShadow: [
             BoxShadow(
-              color: isDark ? kDarkPrimary.withOpacity(0.13) : Colors.black12,
+              color: isDark ? kDarkPrimary.withValues(alpha: 0.13) : Colors.black12,
               blurRadius: 12,
               offset: const Offset(0, 4),
             ),
@@ -203,7 +201,7 @@ class _SavePdfOverlayState extends ConsumerState<SavePdfOverlay> {
                           borderRadius: BorderRadius.circular(10),
                           boxShadow: [
                             BoxShadow(
-                              color: isDark ? kDarkTeal.withOpacity(0.18) : Colors.blue.withOpacity(0.18),
+                              color: isDark ? kDarkTeal.withValues(alpha: 0.18) : Colors.blue.withValues(alpha: 0.18),
                               blurRadius: 8,
                               offset: const Offset(0, 3),
                             ),

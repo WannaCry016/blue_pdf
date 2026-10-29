@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 const _channel = MethodChannel('com.bluepdf.channel/pdf');
@@ -16,7 +17,7 @@ Future<String> imageToPdfNative(List<String> imagePaths, String pageMode) async 
     }
     return filePath;
   } on PlatformException catch (e) {
-    print("imageToPdfNative failed: ${e.message}");
+    debugPrint("imageToPdfNative failed: ${e.message}");
     rethrow;
   }
 }

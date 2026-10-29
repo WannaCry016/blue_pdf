@@ -1,8 +1,10 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 enum ViewMode { list, grid }
 
@@ -45,62 +47,63 @@ class ThemePrefs {
   }
 }
 
+/// A file chosen by the user (picked, captured, or generated), always backed by a local path.
+class SelectedFile {
+  final String name;
+  final String path;
+
+  const SelectedFile({required this.name, required this.path});
+
+  factory SelectedFile.fromPath(String path) =>
+      SelectedFile(name: p.basename(path), path: path);
+
+  String? get extension {
+    final ext = p.extension(name);
+    return ext.isEmpty ? null : ext.substring(1).toLowerCase();
+  }
+
+  /// Picked files without a local path (content URIs) are copied into the cache.
+  static Future<SelectedFile> fromPicked(PlatformFile file) async {
+    final localPath = file.path;
+    if (localPath != null) return SelectedFile(name: file.name, path: localPath);
+
+    final dir = await getTemporaryDirectory();
+    final copy = File(p.join(dir.path, '${DateTime.now().microsecondsSinceEpoch}_${file.name}'));
+    await copy.writeAsBytes(await file.readAsBytes());
+    return SelectedFile(name: file.name, path: copy.path);
+  }
+}
 
 var selectedFilePathProvider = StateProvider<String?>((ref) => null);
 final imageToPdfFilesProvider =
-    StateNotifierProvider<SelectedFilesNotifier, List<PlatformFile>>(
+    StateNotifierProvider<SelectedFilesNotifier, List<SelectedFile>>(
         (ref) => SelectedFilesNotifier());
 
 final mergePdfFilesProvider =
-    StateNotifierProvider<SelectedFilesNotifier, List<PlatformFile>>(
+    StateNotifierProvider<SelectedFilesNotifier, List<SelectedFile>>(
         (ref) => SelectedFilesNotifier());
 
 final encryptPdfFilesProvider =
-    StateNotifierProvider<SelectedFilesNotifier, List<PlatformFile>>(
+    StateNotifierProvider<SelectedFilesNotifier, List<SelectedFile>>(
         (ref) => SelectedFilesNotifier());
 
 final splitPdfFilesProvider =
-    StateNotifierProvider<SelectedFilesNotifier, List<PlatformFile>>(
+    StateNotifierProvider<SelectedFilesNotifier, List<SelectedFile>>(
         (ref) => SelectedFilesNotifier());
 
 final reorderPdfFilesProvider =
-    StateNotifierProvider<SelectedFilesNotifier, List<PlatformFile>>(
+    StateNotifierProvider<SelectedFilesNotifier, List<SelectedFile>>(
         (ref) => SelectedFilesNotifier());
 
-class SelectedFilesNotifier extends StateNotifier<List<PlatformFile>> {
+class SelectedFilesNotifier extends StateNotifier<List<SelectedFile>> {
   SelectedFilesNotifier() : super([]);
 
-  void setFiles(List<PlatformFile> files) {
+  void setFiles(List<SelectedFile> files) {
     state = files;
   }
 
-  void addFiles(List<PlatformFile> files) async {
-    // Show file names immediately
+  void addFiles(List<SelectedFile> files) {
     state = [...state, ...files];
-
-    // Start background loading of bytes
-    for (int i = 0; i < files.length; i++) {
-      final file = files[i];
-      if (file.path != null) {
-        final fileData = await File(file.path!).readAsBytes();
-
-        final updatedFile = PlatformFile(
-          name: file.name,
-          path: file.path,
-          bytes: fileData,
-          size: fileData.length,
-        );
-
-        // Update only the one file in state (preserving index order)
-        state = [
-          for (int j = 0; j < state.length; j++)
-            if (j == state.length - files.length + i)
-              updatedFile
-            else
-              state[j],
-        ];
-      }
-    }
   }
 
   void removeFileAt(int index) {
@@ -108,56 +111,15 @@ class SelectedFilesNotifier extends StateNotifier<List<PlatformFile>> {
     state = newList;
   }
 
-  void reorder(int oldIndex, int newIndex) {
+  /// Moves the item at [from] so it ends up at index [to] in the new list.
+  void move(int from, int to) {
     final updatedList = [...state];
-    if (newIndex > oldIndex) newIndex--;
-    final item = updatedList.removeAt(oldIndex);
-    updatedList.insert(newIndex, item);
+    final item = updatedList.removeAt(from);
+    updatedList.insert(to, item);
     state = updatedList;
   }
 
   void clear() {
     state = [];
-  }
-}
-
-final recentCreatedFilesProvider = StateNotifierProvider<RecentFilesNotifier, List<String>>(
-  (ref) => RecentFilesNotifier(),
-);
-
-
-class RecentFilesNotifier extends StateNotifier<List<String>> {
-  static const _key = 'recent_created_files';
-
-  RecentFilesNotifier() : super([]) {
-    _loadFromPrefs();
-  }
-
-  void _loadFromPrefs() async {
-    final prefs = await SharedPreferences.getInstance();
-    final files = prefs.getStringList(_key) ?? [];
-    state = files;
-  }
-
-  void _saveToPrefs() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(_key, state);
-  }
-
-  void addFile(String path) {
-    if (!state.contains(path)) {
-      state = [path, ...state];
-      _saveToPrefs();
-    }
-  }
-
-  void removeFile(String path) {
-    state = state.where((p) => p != path).toList();
-    _saveToPrefs();
-  }
-
-  void clear() {
-    state = [];
-    _saveToPrefs();
   }
 }

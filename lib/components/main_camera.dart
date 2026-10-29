@@ -66,7 +66,20 @@ class _CameraCaptureScreenState extends ConsumerState<CameraCaptureScreen> {
   }
 
   Future<void> _initializeCamera(CameraLensDirection direction) async {
-    final camera = cameras.firstWhere((c) => c.lensDirection == direction);
+    if (cameras.isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("No camera available on this device.")),
+        );
+        Navigator.pop(context);
+      });
+      return;
+    }
+    final camera = cameras.firstWhere(
+      (c) => c.lensDirection == direction,
+      orElse: () => cameras.first,
+    );
     _controller = CameraController(
       camera,
       ResolutionPreset.high,
@@ -154,7 +167,7 @@ class _CameraCaptureScreenState extends ConsumerState<CameraCaptureScreen> {
 
   @override
   void dispose() {
-    _controller.dispose();
+    if (cameras.isNotEmpty) _controller.dispose();
     super.dispose();
   }
 
@@ -242,7 +255,7 @@ class _CameraCaptureScreenState extends ConsumerState<CameraCaptureScreen> {
                             shape: BoxShape.circle,
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.4),
+                                color: Colors.black.withValues(alpha: 0.4),
                                 blurRadius: 8,
                                 offset: const Offset(0, 4),
                               ),

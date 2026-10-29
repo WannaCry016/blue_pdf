@@ -41,13 +41,13 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
               await file.delete(recursive: true);
             }
           } catch (e) {
-            print("⚠️ Error deleting ${file.path}: $e");
+            debugPrint("⚠️ Error deleting ${file.path}: $e");
           }
         }
-        print("🧹 Cache directory cleared: ${cacheDir.path}");
+        debugPrint("🧹 Cache directory cleared: ${cacheDir.path}");
       }
     } catch (e) {
-      print("❌ Failed to clear cache: $e");
+      debugPrint("❌ Failed to clear cache: $e");
     }
   }
 
@@ -169,7 +169,7 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: isDark ? accent.withOpacity(0.18) : Colors.blue.withOpacity(0.18),
+                              color: isDark ? accent.withValues(alpha: 0.18) : Colors.blue.withValues(alpha: 0.18),
                               blurRadius: isTab ? 28 : 18,
                               offset: const Offset(0, 6),
                             ),
@@ -198,7 +198,7 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
                         style: TextStyle(
                           fontSize: quoteFont,
                           fontStyle: FontStyle.italic,
-                          color: secondaryTextColor.withOpacity(0.7),
+                          color: secondaryTextColor.withValues(alpha: 0.7),
                           height: 1.4,
                         ),
                         textAlign: TextAlign.center,
@@ -271,8 +271,8 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
                                 boxShadow: [
                                   BoxShadow(
                                     color: isDark 
-                                      ? accent.withOpacity(0.13) 
-                                      : Colors.blue.withOpacity(0.08),
+                                      ? accent.withValues(alpha: 0.13) 
+                                      : Colors.blue.withValues(alpha: 0.08),
                                     blurRadius: isTab ? 12 : 6,
                                     offset: const Offset(0, 2),
                                   ),
@@ -280,7 +280,7 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
                                 // Add subtle border for light theme
                                 border: isDark 
                                   ? null 
-                                  : Border.all(color: Colors.blue.withOpacity(0.1), width: 0.5),
+                                  : Border.all(color: Colors.blue.withValues(alpha: 0.1), width: 0.5),
                               ),
                               child: ElevatedButton.icon(
                                 icon: Icon(Icons.picture_as_pdf_rounded, color: Colors.white, size: buttonIcon),
@@ -295,13 +295,13 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
                                     );
 
                                     if (result.type != ResultType.done) {
-                                      print('❌ Could not open file: ${result.message}');
+                                      debugPrint('❌ Could not open file: ${result.message}');
                                       ScaffoldMessenger.of(context).showSnackBar(
                                         const SnackBar(content: Text("Failed to open PDF viewer.")),
                                       );
                                     }
                                   } else {
-                                    print('❌ Preview file missing: ${file.path}');
+                                    debugPrint('❌ Preview file missing: ${file.path}');
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(content: Text("File not found in cache.")),
                                     );
@@ -330,8 +330,8 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
                                 boxShadow: [
                                   BoxShadow(
                                     color: isDark 
-                                      ? accent.withOpacity(0.13) 
-                                      : Colors.blue.withOpacity(0.08),
+                                      ? accent.withValues(alpha: 0.13) 
+                                      : Colors.blue.withValues(alpha: 0.08),
                                     blurRadius: isTab ? 12 : 6,
                                     offset: const Offset(0, 2),
                                   ),
@@ -339,7 +339,7 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
                                 // Add subtle border for light theme
                                 border: isDark 
                                   ? null 
-                                  : Border.all(color: Colors.blue.withOpacity(0.1), width: 0.5),
+                                  : Border.all(color: Colors.blue.withValues(alpha: 0.1), width: 0.5),
                               ),
                               child: ElevatedButton.icon(
                                 icon: Icon(Icons.share, color: Colors.white, size: buttonIcon),
@@ -354,10 +354,10 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
                                         ),
                                       );
                                     } catch (e) {
-                                      print('❌ Share failed: ${e}');
+                                      debugPrint('❌ Share failed: $e');
                                     }
                                   } else {
-                                    print('❌ Cache file not found: ${file.path}');
+                                    debugPrint('❌ Cache file not found: ${file.path}');
                                   }
                                 },
                                 style: ElevatedButton.styleFrom(
@@ -389,8 +389,8 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
                             boxShadow: [
                               BoxShadow(
                                 color: isDark 
-                                  ? accent.withOpacity(0.13) 
-                                  : Colors.blue.withOpacity(0.08),
+                                  ? accent.withValues(alpha: 0.13) 
+                                  : Colors.blue.withValues(alpha: 0.08),
                                 blurRadius: isTab ? 12 : 6,
                                 offset: const Offset(0, 2),
                               ),
@@ -398,7 +398,7 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
                             // Add subtle border for light theme
                             border: isDark 
                               ? null 
-                              : Border.all(color: Colors.blue.withOpacity(0.1), width: 0.5),
+                              : Border.all(color: Colors.blue.withValues(alpha: 0.1), width: 0.5),
                           ),
                           child: ElevatedButton.icon(
                             icon: Icon(Icons.home, color: Colors.white, size: buttonIcon),

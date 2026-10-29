@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 const _channel = MethodChannel('com.bluepdf.channel/pdf');
 
@@ -15,7 +16,7 @@ Future<String> splitPdfNative(String inputPath, List<int> pagesToSplit) async {
     }
     return outputPaths;
   } on PlatformException catch (e) {
-    print("splitPdfNative failed: ${e.message}");
+    debugPrint("splitPdfNative failed: ${e.message}");
     rethrow;
   }
 }

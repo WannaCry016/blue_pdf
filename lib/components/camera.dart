@@ -2,7 +2,6 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:blue_pdf/components/main_camera.dart';
 import 'package:blue_pdf/state_providers.dart';
 import 'package:path/path.dart' as path;
@@ -49,23 +48,20 @@ class CameraButton extends ConsumerWidget {
 
                 final savedFile = await File(tempPath).writeAsBytes(fixedBytes);
 
-                // ✅ Save to gallery folder
-                final picturesDir = Directory('/storage/emulated/0/Pictures/BluePDF');
-                if (!await picturesDir.exists()) {
-                  await picturesDir.create(recursive: true);
+                // Direct writes to shared storage are only allowed on Android 11+.
+                try {
+                  final picturesDir = Directory('/storage/emulated/0/Pictures/BluePDF');
+                  if (!await picturesDir.exists()) {
+                    await picturesDir.create(recursive: true);
+                  }
+                  await savedFile.copy(path.join(picturesDir.path, fileName));
+                } catch (e) {
+                  debugPrint("Gallery copy skipped: $e");
                 }
 
-                final finalPath = path.join(picturesDir.path, fileName);
-                await savedFile.copy(finalPath);
-
-                // ✅ For your PDF logic
-                final platformFile = PlatformFile(
-                  name: fileName,
-                  path: savedFile.path, // use savedFile.path (cache) or finalPath (gallery)
-                  size: await savedFile.length(),
+                ref.read(imageToPdfFilesProvider.notifier).addFiles(
+                  [SelectedFile(name: fileName, path: savedFile.path)],
                 );
-
-                ref.read(imageToPdfFilesProvider.notifier).addFiles([platformFile]);
 
                 Navigator.pop(context, true); // ✅ Return true
               },
@@ -103,7 +99,7 @@ class CameraButton extends ConsumerWidget {
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.blueAccent.withOpacity(0.3),
+                  color: Colors.blueAccent.withValues(alpha: 0.3),
                   blurRadius: 10,
                   spreadRadius: 2,
                   offset: const Offset(0, 6),

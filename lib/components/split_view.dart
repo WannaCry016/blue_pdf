@@ -134,7 +134,7 @@ class _SplitPdfDialogState extends State<SplitPdfDialog>
               border: Border.all(color: borderColor, width: 1),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
@@ -164,8 +164,8 @@ class _SplitPdfDialogState extends State<SplitPdfDialog>
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                           colors: [
-                            accent.withOpacity(0.1),
-                            accent.withOpacity(0.05),
+                            accent.withValues(alpha: 0.1),
+                            accent.withValues(alpha: 0.05),
                           ],
                         ),
                       ),
@@ -175,14 +175,14 @@ class _SplitPdfDialogState extends State<SplitPdfDialog>
                           Icon(
                             Icons.picture_as_pdf_outlined,
                             size: previewHeight * 0.2,
-                            color: accent.withOpacity(0.6),
+                            color: accent.withValues(alpha: 0.6),
                           ),
                           SizedBox(height: previewHeight * 0.05),
                           Text(
                             '$label Page\nPreview',
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              color: textColor.withOpacity(0.6),
+                              color: textColor.withValues(alpha: 0.6),
                               fontSize: previewHeight * 0.06,
                               fontWeight: FontWeight.w500,
                             ),
@@ -205,7 +205,7 @@ class _SplitPdfDialogState extends State<SplitPdfDialog>
                           borderRadius: BorderRadius.circular(12),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.2),
+                              color: Colors.black.withValues(alpha: 0.2),
                               blurRadius: 4,
                               offset: const Offset(0, 2),
                             ),
@@ -244,7 +244,7 @@ class _SplitPdfDialogState extends State<SplitPdfDialog>
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.03),
+                      color: Colors.black.withValues(alpha: 0.03),
                       blurRadius: 6,
                       offset: const Offset(0, 2),
                     ),
@@ -261,7 +261,7 @@ class _SplitPdfDialogState extends State<SplitPdfDialog>
                   decoration: InputDecoration(
                     hintText: 'Enter page number',
                     hintStyle: TextStyle(
-                      color: textColor.withOpacity(0.5),
+                      color: textColor.withValues(alpha: 0.5),
                       fontSize: 14,
                     ),
                     filled: true,
@@ -284,7 +284,7 @@ class _SplitPdfDialogState extends State<SplitPdfDialog>
                     ),
                     suffixText: '/ $totalPages',
                     suffixStyle: TextStyle(
-                      color: textColor.withOpacity(0.6),
+                      color: textColor.withValues(alpha: 0.6),
                       fontSize: 12,
                     ),
                   ),
@@ -314,7 +314,6 @@ class _SplitPdfDialogState extends State<SplitPdfDialog>
     final previewHeight = isSmallScreen ? 180.0 : 240.0;
     
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF101A30) : Colors.grey[100];
     final cardColor = isDark ? const Color(0xFF1A2236) : Colors.white;
     final borderColor = isDark ? const Color(0xFF232A3B) : Colors.grey.shade300;
     final textColor = isDark ? Colors.white : Colors.black87;
@@ -341,7 +340,7 @@ class _SplitPdfDialogState extends State<SplitPdfDialog>
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Colors.black.withValues(alpha: 0.1),
               blurRadius: 20,
               offset: const Offset(0, 8),
             ),
@@ -362,7 +361,7 @@ class _SplitPdfDialogState extends State<SplitPdfDialog>
                       Text(
                         'Loading PDF pages...',
                         style: TextStyle(
-                          color: textColor.withOpacity(0.7),
+                          color: textColor.withValues(alpha: 0.7),
                           fontSize: 16,
                         ),
                       ),

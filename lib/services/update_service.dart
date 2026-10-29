@@ -19,7 +19,7 @@ class UpdateService {
         _showUpdateDialog(context, updateInfo);
       }
     } catch (e) {
-      print('Error checking for update: $e');
+      debugPrint('Error checking for update: $e');
     } finally {
       _isCheckingForUpdate = false;
     }
@@ -40,7 +40,7 @@ class UpdateService {
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withValues(alpha: 0.1),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
@@ -179,7 +179,7 @@ class UpdateService {
     try {
       await InAppUpdate.performImmediateUpdate();
     } catch (e) {
-      print('Error performing immediate update: $e');
+      debugPrint('Error performing immediate update: $e');
     }
   }
 
@@ -191,10 +191,10 @@ class UpdateService {
       // Listen for download completion
       InAppUpdate.completeFlexibleUpdate().then((_) {
         // Show snackbar or restart app
-        print('Flexible update completed');
+        debugPrint('Flexible update completed');
       });
     } catch (e) {
-      print('Error performing flexible update: $e');
+      debugPrint('Error performing flexible update: $e');
     }
   }
 
@@ -212,7 +212,7 @@ class UpdateService {
         }
       }
     } catch (e) {
-      print('Error checking for critical update: $e');
+      debugPrint('Error checking for critical update: $e');
     }
   }
 
@@ -222,8 +222,8 @@ class UpdateService {
       context: context,
       barrierDismissible: false,
       builder: (BuildContext context) {
-        return WillPopScope(
-          onWillPop: () async => false, // Prevent back button
+        return PopScope(
+          canPop: false,
           child: Dialog(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             child: Container(
@@ -233,7 +233,7 @@ class UpdateService {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.15),
+                    color: Colors.black.withValues(alpha: 0.15),
                     blurRadius: 15,
                     offset: const Offset(0, 8),
                   ),

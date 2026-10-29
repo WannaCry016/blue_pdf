@@ -9,11 +9,16 @@ final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.light);
 Future<void> initThemeNotifier() async {
   themeNotifier.value = await ThemePrefs.loadThemeMode();
 }
-late List<CameraDescription> cameras;
+List<CameraDescription> cameras = [];
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  cameras = await availableCameras();
+  await initThemeNotifier();
+  try {
+    cameras = await availableCameras();
+  } catch (e) {
+    debugPrint("Camera lookup failed: $e");
+  }
   runApp(ProviderScope(child: PDFUtilApp()));
 }
 
@@ -24,7 +29,7 @@ class PDFUtilApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: themeNotifier,
-      builder: (_, ThemeMode mode, __) {
+      builder: (_, ThemeMode mode, _) {
         return MaterialApp(
           title: 'Blue PDF',
           theme: ThemeData(

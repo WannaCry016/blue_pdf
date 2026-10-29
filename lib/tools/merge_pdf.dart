@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 const _channel = MethodChannel('com.bluepdf.channel/pdf');
 
@@ -14,7 +15,7 @@ Future<String> mergePdfNative(List<String> pdfPaths) async {
     }
     return filePath;
   } on PlatformException catch (e) {
-    print("mergePdfNative failed:  ${e.message}");
+    debugPrint("mergePdfNative failed:  ${e.message}");
     rethrow;
   }
 }

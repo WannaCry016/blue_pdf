@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 const _channel = MethodChannel('com.bluepdf.channel/pdf');
@@ -16,7 +17,7 @@ Future<String> encryptPdfNative(String inputPath, String password) async {
     }
     return filePath;
   } on PlatformException catch (e) {
-    print("encryptPdfNative failed: ${e.message}");
+    debugPrint("encryptPdfNative failed: ${e.message}");
     
     // Handle specific error cases with proper error messages
     switch (e.code) {

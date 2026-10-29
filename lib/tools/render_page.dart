@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 const _channel = MethodChannel('com.bluepdf.channel/pdf');
@@ -16,7 +17,7 @@ Future<String> renderSinglePage(String path, int pageIndex) async {
     }
     return imagePath;
   } on PlatformException catch (e) {
-    print("renderSinglePage failed: ${e.message}");
+    debugPrint("renderSinglePage failed: ${e.message}");
     rethrow;
   }
 }

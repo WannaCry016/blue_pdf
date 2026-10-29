@@ -1,5 +1,2 @@
-# Ignore missing JPEG2000 dependency classes
--dontwarn com.gemalto.jp2.**
--assumenosideeffects class com.tom_roush.pdfbox.filter.JPXFilter {
-    *;
-}
+# Project-specific R8 rules.
+# JNI methods in MainActivity are kept by the default proguard-android-optimize.txt rules.

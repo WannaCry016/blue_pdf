@@ -1,6 +1,5 @@
 
 import 'dart:io';
-import 'dart:ui';
 import 'package:blue_pdf/main.dart';
 import 'package:blue_pdf/components/split_view.dart';
 import 'package:blue_pdf/tools/pdf_encryptor.dart';
@@ -139,7 +138,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     try {
       Uint8List? resultBytes;
-      final filePaths = selectedFiles.map((f) => f.path!).toList();
+      final filePaths = selectedFiles.map((f) => f.path).toList();
 
 
       // --- Native processing ---
@@ -211,7 +210,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       if (didSave != true) {
         if (await tempFile.exists()) {
           await tempFile.delete();
-          print("Save cancelled. Temp file deleted: $initialCachePath");
+          debugPrint("Save cancelled. Temp file deleted: $initialCachePath");
         }
         return;
       }
@@ -222,7 +221,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       }
 
       final recent = ref.read(recentFilesProvider);
-      final updated = [outputPath, ...recent].toSet().toList();
+      final updated = {outputPath, ...recent}.toList();
       ref.read(recentFilesProvider.notifier).state = updated.take(4).toList();
 
       Navigator.push(
@@ -234,7 +233,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
       );
     } catch (e) {
-      print("Error in _processFiles: ${e.toString()}");
+      debugPrint("Error in _processFiles: ${e.toString()}");
 
       // Make sure to close the spinner in case of error
       if (context.mounted) Navigator.pop(context);
@@ -258,56 +257,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         return;
       }
 
-      FilePickerResult? result;
-
-      switch (selectedTool) {
-        case 'Merge PDF':
-          result = await FilePicker.platform.pickFiles(
-            type: FileType.custom,
-            allowedExtensions: ['pdf'],
-            allowMultiple: true,
-            withData: false,
-          );
-          break;
-
-        case 'Image to PDF':
-          result = await FilePicker.platform.pickFiles(
-            type: FileType.image,
-            allowMultiple: true,
-            withData: false,
-          );
-          break;
-
-        case 'Encrypt PDF':
-          result = await FilePicker.platform.pickFiles(
-            type: FileType.custom,
-            allowedExtensions: ['pdf'],
-            allowMultiple: false,
-            withData: false,
-          );
-          break;
-
-        case 'Split PDF':
-          result = await FilePicker.platform.pickFiles(
-            type: FileType.custom,
-            allowedExtensions: ['pdf'],
-            allowMultiple: false,
-            withData: false,
-          );
-          break;
-          
-        case 'Reorder PDF':
-          result = await FilePicker.platform.pickFiles(
-            type: FileType.custom,
-            allowedExtensions: ['pdf'],
-            allowMultiple: false,
-            withData: false,
-          );
-          break;
+      final List<PlatformFile> picked;
+      if (selectedTool == 'Image to PDF') {
+        picked = await FilePicker.pickFiles(type: FileType.image);
+      } else if (selectedTool == 'Merge PDF') {
+        picked = await FilePicker.pickFiles(
+          type: FileType.custom,
+          allowedExtensions: ['pdf'],
+        );
+      } else {
+        final single = await FilePicker.pickFile(
+          type: FileType.custom,
+          allowedExtensions: ['pdf'],
+        );
+        picked = single == null ? [] : [single];
       }
 
       // ✅ Only show loading dialog AFTER user has picked files
-      if (result != null && result.files.isNotEmpty) {
+      if (picked.isNotEmpty) {
         showDialog(
           context: context,
           barrierDismissible: false,
@@ -347,31 +314,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         // Short delay to make dialog visible
         await Future.delayed(const Duration(milliseconds: 150));
 
+        final files = await Future.wait(picked.map(SelectedFile.fromPicked));
+
         // ✅ Add files to provider
         switch (selectedTool) {
           case 'Merge PDF':
-            ref.read(mergePdfFilesProvider.notifier).addFiles(result.files);
+            ref.read(mergePdfFilesProvider.notifier).addFiles(files);
             break;
           case 'Image to PDF':
-            ref.read(imageToPdfFilesProvider.notifier).addFiles(result.files);
+            ref.read(imageToPdfFilesProvider.notifier).addFiles(files);
             break;
           case 'Encrypt PDF':
-            ref.read(encryptPdfFilesProvider.notifier).addFiles(result.files);
+            ref.read(encryptPdfFilesProvider.notifier).addFiles(files);
             break;
           case 'Split PDF':
-            ref.read(mergePdfFilesProvider.notifier).addFiles(result.files);
+            ref.read(mergePdfFilesProvider.notifier).addFiles(files);
             break;
           case 'Reorder PDF':
-            if (result.files.isNotEmpty) {
+            if (files.isNotEmpty) {
               try {
-                // Convert PDF to images and add to provider
-                final imagePaths = await reorderPdfNative(result.files.first.path!);
-                final imageFiles = imagePaths.map((path) => PlatformFile(
-                  name: path.split('/').last,
-                  path: path,
-                  size: 0,
-                )).toList();
-                ref.read(reorderPdfFilesProvider.notifier).addFiles(imageFiles);
+                // Split the PDF into single pages and add them to the provider
+                final pagePaths = await reorderPdfNative(files.first.path);
+                ref.read(reorderPdfFilesProvider.notifier)
+                    .addFiles(pagePaths.map(SelectedFile.fromPath).toList());
               } catch (e) {
                 debugPrint("Reorder PDF Error: $e");
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -508,13 +473,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         ],
       ),
-      body: LayoutBuilder(
+      body: SafeArea(
+        top: false,
+        child: LayoutBuilder(
         builder: (context, constraints) {
           final isTab = isTablet(context);
           final isDark = Theme.of(context).brightness == Brightness.dark;
           final textColor = isDark ? kDarkText : Colors.black87;
           final secondaryTextColor = isDark ? kDarkSecondaryText : Colors.grey.shade600;
-          final bgColor = isDark ? kDarkBg : const Color(0xFFECEFF1);
           final cardColor = isDark ? kDarkCard : Colors.white;
           final borderColor = isDark ? kDarkBorder : Colors.grey.shade300;
           final gradientColors = isDark
@@ -531,7 +497,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           final double mainFont = isTab ? 22 : 16;
           final double subFont = isTab ? 18 : 14;
           final double buttonFont = isTab ? 18 : 15.5;
-          final double iconSize = isTab ? 36 : 22;
           final double uploadIconSize = isTab ? 38 : 26;
           final double uploadFont = isTab ? 28 : 22;
           final double listTileFont = isTab ? 20 : 14.5;
@@ -598,14 +563,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           borderRadius: BorderRadius.circular(14),
                           boxShadow: [
                             BoxShadow(
-                              color: isDark ? kDarkTeal.withOpacity(0.25) : Colors.blue.withOpacity(0.35),
+                              color: isDark ? kDarkTeal.withValues(alpha: 0.25) : Colors.blue.withValues(alpha: 0.35),
                               blurRadius: 16,
                               spreadRadius: 2,
                               offset: const Offset(0, 6),
                             ),
                           ],
                           border: Border.all(
-                            color: Colors.white.withOpacity(isDark ? 0.08 : 0.1),
+                            color: Colors.white.withValues(alpha: isDark ? 0.08 : 0.1),
                             width: 1,
                           ),
                         ),
@@ -833,8 +798,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                   child: ReorderableListView.builder(
                                     shrinkWrap: true,
                                     itemCount: selectedFiles.length,
-                                    onReorder: (oldIndex, newIndex) {
-                                      filesNotifier.reorder(oldIndex, newIndex);
+                                    onReorderItem: (oldIndex, newIndex) {
+                                      filesNotifier.move(oldIndex, newIndex);
                                     },
                                     padding: EdgeInsets.zero,
                                     buildDefaultDragHandles: true,
@@ -871,14 +836,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                           child: Icon(Icons.close_rounded, color: Colors.redAccent, size: closeIcon),
                                         ),
                                         onTap: () async {
-                                          final filePath = file.path!;
+                                          final filePath = file.path;
                                           ref.read(selectedFilePathProvider.notifier).state = filePath;
 
                                           if (file.extension == 'pdf') {
                                             await OpenFilex.open(filePath);
                                           } else if ([
                                             'jpg', 'jpeg', 'png', 'gif'
-                                          ].contains(file.extension!.toLowerCase())) {
+                                          ].contains(file.extension)) {
                                             await OpenFilex.open(filePath);
                                           } else {
                                             ScaffoldMessenger.of(context).showSnackBar(
@@ -912,7 +877,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             borderRadius: BorderRadius.circular(30),
                             boxShadow: [
                               BoxShadow(
-                                color: (isDark ? kDarkAccent : Colors.blueAccent).withOpacity(0.3),
+                                color: (isDark ? kDarkAccent : Colors.blueAccent).withValues(alpha: 0.3),
                                 blurRadius: 10,
                                 offset: const Offset(0, 4),
                               ),
@@ -1013,7 +978,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                           style: TextStyle(
                                             fontSize: subFont,
                                             fontWeight: FontWeight.w400,
-                                            color: textColor.withOpacity(0.55),
+                                            color: textColor.withValues(alpha: 0.55),
                                             letterSpacing: 0.2,
                                           ),
                                           maxLines: 3,
@@ -1051,12 +1016,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               if (viewMode == ViewMode.grid && selectedFiles.isNotEmpty)
                 Positioned.fill(
                   child: Container(
-                    color: Colors.black.withOpacity(0.3),
+                    color: Colors.black.withValues(alpha: 0.3),
                     child: Center(
                       child: GridViewOverlay(
                         files: selectedFiles,
                         onRemoveFile: (index) => filesNotifier.removeFileAt(index),
-                        onReorder: (oldIndex, newIndex) => filesNotifier.reorder(oldIndex, newIndex),
+                        onReorder: (oldIndex, newIndex) => filesNotifier.move(oldIndex, newIndex),
                         isDark: isDark,
                         textColor: textColor,
                         cardColor: cardColor,
@@ -1075,6 +1040,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ],
           );
         },
+        ),
       ),
     );
   }

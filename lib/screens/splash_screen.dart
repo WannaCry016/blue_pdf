@@ -1,6 +1,7 @@
 import 'package:blue_pdf/screens/home_screen.dart';
 import 'package:blue_pdf/screens/onbaording_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -51,16 +52,21 @@ class _SplashScreenState extends State<SplashScreen> {
           ),
           const Spacer(),
           // Version label at bottom
-          const Padding(
-            padding: EdgeInsets.only(bottom: 20),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 20),
             child: Center(
-              child: Text(
-                "Blue PDF • Version v1.0.2",
-                style: TextStyle(
-                  color: Colors.white60,
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w400,
-                  letterSpacing: 0.6,
+              child: FutureBuilder<PackageInfo>(
+                future: PackageInfo.fromPlatform(),
+                builder: (context, snapshot) => Text(
+                  snapshot.hasData
+                      ? "Blue PDF • Version v${snapshot.data!.version}"
+                      : "Blue PDF",
+                  style: const TextStyle(
+                    color: Colors.white60,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w400,
+                    letterSpacing: 0.6,
+                  ),
                 ),
               ),
             ),

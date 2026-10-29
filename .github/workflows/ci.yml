@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, 'patch-*']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.8
+          cache: true
+
+      - run: flutter pub get
+
+      - name: Analyze
+        # use_build_context_synchronously infos are tracked for Phase 1; fail only on warnings/errors.
+        run: flutter analyze --no-fatal-infos
+
+      - name: Test
+        run: flutter test
+
+  build-android:
+    needs: analyze-and-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.8
+          cache: true
+
+      - run: flutter pub get
+
+      - name: Build app bundle (debug-signed, not for upload)
+        run: flutter build appbundle --release
+
+      - name: Check 16 KB page alignment of native libraries
+        run: |
+          set -euo pipefail
+          aab=build/app/outputs/bundle/release/app-release.aab
+          mkdir -p /tmp/aab && unzip -q -o "$aab" 'base/lib/*' -d /tmp/aab
+          readelf=$(find "$ANDROID_HOME/ndk" "${ANDROID_NDK_ROOT:-/nonexistent}" -name llvm-readelf -type f 2>/dev/null | head -n1 || true)
+          [ -n "$readelf" ] || { echo "llvm-readelf not found"; exit 1; }
+          fail=0
+          for so in /tmp/aab/base/lib/arm64-v8a/*.so /tmp/aab/base/lib/x86_64/*.so; do
+            for align in $("$readelf" -lW "$so" | awk '$1=="LOAD"{print $NF}'); do
+              if [ $((align)) -lt 16384 ]; then
+                echo "::error::$so has LOAD alignment $align (< 16 KB)"
+                fail=1
+              fi
+            done
+          done
+          [ $fail -eq 0 ] && echo "All 64-bit native libraries are 16 KB aligned."
+          exit $fail
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-release-aab
+          path: build/app/outputs/bundle/release/app-release.aab
+          retention-days: 7
