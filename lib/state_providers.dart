@@ -24,21 +24,12 @@ class ThemePrefs {
     await prefs.setString(_themeKey, mode.name); // mode.name returns 'light', 'dark', or 'system'
   }
 
-  // Load theme mode
-  static Future<ThemeMode> loadThemeMode() async {
-    final prefs = await SharedPreferences.getInstance();
-    final themeStr = prefs.getString(_themeKey) ?? 'light';
-
-    switch (themeStr) {
-      case 'dark':
-        return ThemeMode.dark;
-      case 'system':
-        return ThemeMode.system;
-      case 'light':
-      default:
-        return ThemeMode.light;
-    }
-  }
+  static ThemeMode themeModeFrom(SharedPreferences prefs) =>
+      switch (prefs.getString(_themeKey)) {
+        'dark' => ThemeMode.dark,
+        'system' => ThemeMode.system,
+        _ => ThemeMode.light,
+      };
 }
 
 /// A file chosen by the user (picked, captured, or generated), always backed by a local path.

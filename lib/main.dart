@@ -1,29 +1,26 @@
-import 'package:blue_pdf/screens/splash_screen.dart';
+import 'package:blue_pdf/screens/home_screen.dart';
+import 'package:blue_pdf/screens/onbaording_screen.dart';
 import 'package:blue_pdf/state_providers.dart';
-import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.light);
 
-Future<void> initThemeNotifier() async {
-  themeNotifier.value = await ThemePrefs.loadThemeMode();
-}
-List<CameraDescription> cameras = [];
-
+// Keep work before runApp to a single prefs read: the native launch screen
+// stays up until the first frame, so anything here delays the app opening.
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await initThemeNotifier();
-  try {
-    cameras = await availableCameras();
-  } catch (e) {
-    debugPrint("Camera lookup failed: $e");
-  }
-  runApp(ProviderScope(child: PDFUtilApp()));
+  final prefs = await SharedPreferences.getInstance();
+  themeNotifier.value = ThemePrefs.themeModeFrom(prefs);
+  final seenOnboarding = prefs.getBool('seenOnboarding') ?? false;
+  runApp(ProviderScope(child: PDFUtilApp(seenOnboarding: seenOnboarding)));
 }
 
 class PDFUtilApp extends StatelessWidget {
-  const PDFUtilApp({super.key});
+  final bool seenOnboarding;
+
+  const PDFUtilApp({super.key, required this.seenOnboarding});
 
   @override
   Widget build(BuildContext context) {
@@ -42,7 +39,7 @@ class PDFUtilApp extends StatelessWidget {
             useMaterial3: true,
           ),
           themeMode: mode,
-          home: const SplashScreen(),
+          home: seenOnboarding ? const HomeScreen() : OnboardingScreen(),
         );
       },
     );
