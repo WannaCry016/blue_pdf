@@ -1,28 +1,17 @@
-cmake_minimum_required(VERSION 3.4.1)
+cmake_minimum_required(VERSION 3.18.1)
+project(bluepdf CXX)
 
-# Put this at the top BEFORE add_library(...)
-set(CMAKE_ANDROID_PAGE_SIZE 16384)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Create shared library from your native C++ source
-add_library(native-lib SHARED native-lib.cpp)
+add_library(native-lib SHARED native-lib.cpp pdf_ops.cpp)
 
-# Import the prebuilt MuPDF shared library
+# Prebuilt MuPDF (libmupdf_java.so from MuPDF's Android build).
 add_library(mupdf SHARED IMPORTED)
-
-# Set path to the prebuilt MuPDF .so file
 set_target_properties(mupdf PROPERTIES
     IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/../jniLibs/${ANDROID_ABI}/libmupdf_java.so
 )
 
-# Find the log library for Android
-find_library(log-lib log)
-
-# Include headers from your MuPDF include folder
-include_directories(${CMAKE_SOURCE_DIR}/include)
-
-# Link your native library with MuPDF and log-lib
-target_link_libraries(
-    native-lib
-    mupdf
-    ${log-lib}
-)
+target_include_directories(native-lib PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_compile_options(native-lib PRIVATE -Wall)
+target_link_libraries(native-lib mupdf)

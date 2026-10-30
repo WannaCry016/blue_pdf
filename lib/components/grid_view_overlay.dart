@@ -1,10 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:open_filex/open_filex.dart';
-import 'package:flutter/services.dart';
 import '../state_providers.dart';
+import 'pdf_page_thumbnail.dart';
 
 // Dark color palette
 const Color kDarkBg = Color(0xFF101A30);
@@ -17,9 +16,10 @@ const Color kDarkText = Colors.white;
 const Color kDarkSecondaryText = Color(0xFFB0B8C1);
 
 class GridViewOverlay extends ConsumerStatefulWidget {
-  final List<PlatformFile> files;
+  final List<SelectedFile> files;
   final Function(int) onRemoveFile;
   final Function(int, int) onReorder;
+  final ValueChanged<int> onRotate;
   final bool isDark;
   final Color textColor;
   final Color cardColor;
@@ -35,6 +35,7 @@ class GridViewOverlay extends ConsumerStatefulWidget {
     required this.files,
     required this.onRemoveFile,
     required this.onReorder,
+    required this.onRotate,
     required this.isDark,
     required this.textColor,
     required this.cardColor,
@@ -55,10 +56,7 @@ class _GridViewOverlayState extends ConsumerState<GridViewOverlay>
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
-  
-  // Rotation state for images
-  final Map<String, double> _rotationAngles = {};
-  
+
   // Drag and drop state
   int? _draggedIndex;
   int? _dragTargetIndex;
@@ -105,13 +103,6 @@ class _GridViewOverlayState extends ConsumerState<GridViewOverlay>
       // Call the callback to notify parent
       widget.onClose?.call();
     }
-  }
-
-  void _rotateImage(String filePath) {
-    setState(() {
-      final currentAngle = _rotationAngles[filePath] ?? 0.0;
-      _rotationAngles[filePath] = (currentAngle + 90) % 360;
-    });
   }
 
   void _onDragStarted(int index) {
@@ -223,7 +214,7 @@ class _GridViewOverlayState extends ConsumerState<GridViewOverlay>
                       onPressed: _closeOverlay,
                       icon: Icon(
                         Icons.close,
-                        color: widget.textColor.withOpacity(0.7),
+                        color: widget.textColor.withValues(alpha: 0.7),
                         size: widget.closeIconSize,
                       ),
                       tooltip: "Close Grid View",
@@ -242,14 +233,14 @@ class _GridViewOverlayState extends ConsumerState<GridViewOverlay>
                             Icon(
                               Icons.folder_open_outlined,
                               size: widget.iconSize - 10,
-                              color: widget.textColor.withOpacity(0.5),
+                              color: widget.textColor.withValues(alpha: 0.5),
                             ),
                             const SizedBox(height: 16),
                             Text(
                               "No files selected",
                               style: TextStyle(
                                 fontSize: widget.fontSize - 2.5,
-                                color: widget.textColor.withOpacity(0.7),
+                                color: widget.textColor.withValues(alpha: 0.7),
                               ),
                             ),
                           ],
@@ -267,8 +258,8 @@ class _GridViewOverlayState extends ConsumerState<GridViewOverlay>
                           itemCount: widget.files.length,
                           itemBuilder: (context, index) {
                             final file = widget.files[index];
-                            final isPdf = file.extension?.toLowerCase() == 'pdf';
-                            
+                            final isPdf = file.pageIndex != null || file.extension == 'pdf';
+
                             return _buildDraggableFileCard(file, index, isPdf);
                           },
                         ),
@@ -281,14 +272,14 @@ class _GridViewOverlayState extends ConsumerState<GridViewOverlay>
     );
   }
 
-  Widget _buildDraggableFileCard(PlatformFile file, int index, bool isPdf) {
+  Widget _buildDraggableFileCard(SelectedFile file, int index, bool isPdf) {
     final isDragging = _draggedIndex == index;
     final isDragTarget = _dragTargetIndex == index && _draggedIndex != null && _draggedIndex != index;
 
     return DragTarget<int>(
       onWillAcceptWithDetails: (details) {
         final data = details.data;
-        if (data != null && data != index) {
+        if (data != index) {
           _onDragTargetUpdate(index);
           return true;
         }
@@ -319,10 +310,10 @@ class _GridViewOverlayState extends ConsumerState<GridViewOverlay>
           ),
           childWhenDragging: Container(
             decoration: BoxDecoration(
-              color: widget.isDark ? kDarkCard.withOpacity(0.3) : Colors.grey.shade50.withOpacity(0.3),
+              color: widget.isDark ? kDarkCard.withValues(alpha: 0.3) : Colors.grey.shade50.withValues(alpha: 0.3),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: widget.borderColor.withOpacity(0.3),
+                color: widget.borderColor.withValues(alpha: 0.3),
                 width: 1,
               ),
             ),
@@ -336,21 +327,22 @@ class _GridViewOverlayState extends ConsumerState<GridViewOverlay>
     );
   }
 
-  Widget _buildFileCard(PlatformFile file, int index, bool isPdf, {bool isDragging = false, bool isDragTarget = false}) {
+  Widget _buildFileCard(SelectedFile file, int index, bool isPdf, {bool isDragging = false, bool isDragTarget = false}) {
+    final canRotate = !isPdf || file.pageIndex != null;
     return Container(
-      key: ValueKey(file.path),
+      key: ValueKey(file.id),
       decoration: BoxDecoration(
         color: widget.isDark ? kDarkCard : Colors.grey.shade50,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isDragTarget 
             ? (widget.isDark ? kDarkAccent : Colors.blueAccent)
-            : widget.borderColor.withOpacity(0.5),
+            : widget.borderColor.withValues(alpha: 0.5),
           width: isDragTarget ? 2 : 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: widget.isDark ? Colors.black12 : Colors.black.withOpacity(0.08),
+            color: widget.isDark ? Colors.black12 : Colors.black.withValues(alpha: 0.08),
             blurRadius: isDragging ? 12 : 8,
             offset: const Offset(0, 4),
           ),
@@ -362,11 +354,11 @@ class _GridViewOverlayState extends ConsumerState<GridViewOverlay>
             child: GestureDetector(
               onTap: () async {
                 if (_isDragging) return; // Prevent tap during drag
-                final filePath = file.path!;
+                final messenger = ScaffoldMessenger.of(context);
                 try {
-                  await OpenFilex.open(filePath);
+                  await OpenFilex.open(file.path);
                 } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  messenger.showSnackBar(
                     const SnackBar(content: Text("Could not open file")),
                   );
                 }
@@ -391,7 +383,7 @@ class _GridViewOverlayState extends ConsumerState<GridViewOverlay>
                     child: Container(
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.6),
+                        color: Colors.black.withValues(alpha: 0.6),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Icon(
@@ -419,15 +411,14 @@ class _GridViewOverlayState extends ConsumerState<GridViewOverlay>
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                if (!isPdf) ...[
-                  // Rotate button for images
+                if (canRotate) ...[
                   GestureDetector(
-                    onTap: () => _rotateImage(file.path!),
+                    onTap: () => widget.onRotate(index),
                     child: Container(
                       padding: const EdgeInsets.all(6),
                       child: Icon(
                         Icons.rotate_right,
-                        color: widget.textColor.withOpacity(0.7),
+                        color: widget.textColor.withValues(alpha: 0.7),
                         size: widget.iconSize - 4,
                       ),
                     ),
@@ -464,32 +455,35 @@ class _GridViewOverlayState extends ConsumerState<GridViewOverlay>
     );
   }
 
-  Widget _buildPdfPreview(PlatformFile file) {
+  Widget _buildPdfPreview(SelectedFile file) {
     return Container(
       width: double.infinity,
       height: double.infinity,
       color: widget.isDark ? kDarkCard : Colors.grey.shade100,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+      padding: const EdgeInsets.all(6),
+      child: Stack(
+        fit: StackFit.expand,
         children: [
-          Icon(
-            Icons.picture_as_pdf_rounded,
-            size: widget.iconSize + 10,
-            color: widget.isDark ? kDarkAccent : Colors.blueAccent,
+          PdfPageThumbnail(
+            path: file.path,
+            page: file.pageIndex ?? 0,
+            password: file.password,
+            rotation: file.rotation,
           ),
-          const SizedBox(height: 6),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6),
-            child: Text(
-              file.name,
-              style: TextStyle(
-                fontSize: widget.fontSize - 4.5,
-                color: widget.textColor,
-                fontWeight: FontWeight.w500,
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Container(
+              color: Colors.black.withValues(alpha: 0.55),
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              child: Text(
+                file.name,
+                style: TextStyle(fontSize: widget.fontSize - 4.5, color: Colors.white),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
               ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
             ),
           ),
         ],
@@ -497,40 +491,22 @@ class _GridViewOverlayState extends ConsumerState<GridViewOverlay>
     );
   }
 
-  Widget _buildImagePreview(PlatformFile file) {
-    return FutureBuilder<File?>(
-      future: Future.value(File(file.path!)),
-      builder: (context, snapshot) {
-        if (snapshot.hasData && snapshot.data!.existsSync()) {
-          final rotationAngle = _rotationAngles[file.path!] ?? 0.0;
-          
-          return Container(
-            width: double.infinity,
-            height: double.infinity,
-            decoration: BoxDecoration(
-              color: widget.isDark ? kDarkCard : Colors.grey.shade100,
-            ),
-            child: ClipRRect(
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
-              ),
-              child: Transform.rotate(
-                angle: rotationAngle * 3.14159 / 180, // Convert degrees to radians
-                child: Image.file(
-                  snapshot.data!,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return _buildImageErrorWidget(file.name);
-                  },
-                ),
-              ),
-            ),
-          );
-        } else {
-          return _buildImageErrorWidget(file.name);
-        }
-      },
+  Widget _buildImagePreview(SelectedFile file) {
+    final cacheWidth = (widget.thumbSize * 2 * MediaQuery.devicePixelRatioOf(context)).round();
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      color: widget.isDark ? kDarkCard : Colors.grey.shade100,
+      child: RotatedBox(
+        quarterTurns: file.rotation ~/ 90,
+        child: Image.file(
+          File(file.path),
+          fit: BoxFit.cover,
+          cacheWidth: cacheWidth,
+          gaplessPlayback: true,
+          errorBuilder: (context, error, stackTrace) => _buildImageErrorWidget(file.name),
+        ),
+      ),
     );
   }
 
@@ -545,7 +521,7 @@ class _GridViewOverlayState extends ConsumerState<GridViewOverlay>
           Icon(
             Icons.image_not_supported_outlined,
             size: widget.iconSize + 18,
-            color: widget.textColor.withOpacity(0.5),
+            color: widget.textColor.withValues(alpha: 0.5),
           ),
           const SizedBox(height: 8),
           Padding(

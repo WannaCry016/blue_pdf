@@ -1,23 +1,22 @@
-
+import 'dart:async';
 import 'dart:io';
-import 'dart:ui';
 import 'package:blue_pdf/main.dart';
+import 'package:blue_pdf/components/job_progress.dart';
 import 'package:blue_pdf/components/split_view.dart';
-import 'package:blue_pdf/tools/pdf_encryptor.dart';
 import 'package:blue_pdf/services/update_service.dart';
-import 'package:flutter/foundation.dart';
 import 'package:open_filex/open_filex.dart';
+import '../components/brand_title.dart';
 import '../components/camera.dart';
 import '../components/dropdown.dart';
+import '../components/pdf_password_dialog.dart';
+import '../pdf/image_formats.dart';
+import '../pdf/pdf_engine.dart';
+import '../pdf/pdf_job.dart';
 import 'process_success_screen.dart';
 import 'about_page.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../components/save_pdf.dart';
-import 'package:blue_pdf/tools/image_to_pdf.dart';
-import 'package:blue_pdf/tools/merge_pdf.dart';
-import 'package:blue_pdf/tools/split_pdf.dart';
-import 'package:blue_pdf/tools/reorder_pdf.dart';
 import 'package:blue_pdf/state_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../components/grid_view_overlay.dart';
@@ -35,7 +34,7 @@ const Color kDarkSecondaryText = Color(0xFFB0B8C1);
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
-  
+
   @override
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
@@ -46,21 +45,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   static bool _hasCheckedForUpdate = false;
 
   final fileProviders = {
-      'Merge PDF': mergePdfFilesProvider,
-      'Image to PDF': imageToPdfFilesProvider,
-      'Encrypt PDF': encryptPdfFilesProvider,
-      'Split PDF': mergePdfFilesProvider, // Use mergePdfFilesProvider for single PDF selection
-      'Reorder PDF': reorderPdfFilesProvider,
-    };
+    'Merge PDF': mergePdfFilesProvider,
+    'Image to PDF': imageToPdfFilesProvider,
+    'Encrypt PDF': encryptPdfFilesProvider,
+    'Split PDF': splitPdfFilesProvider,
+    'Reorder PDF': reorderPdfFilesProvider,
+  };
 
-  Future<String?> _promptPassword(BuildContext context, {required String action}) async {
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  /// Shows [failure] unless the user cancelled, which needs no message.
+  void _showFailure(String what, PdfFailure failure) {
+    if (failure.code == PdfErrorCode.cancelled) return;
+    debugPrint('$what failed: $failure');
+    _showMessage(failure.message);
+  }
+
+  Future<String?> _promptPassword({required String action}) async {
     final controller = TextEditingController();
-    return await showDialog<String>(
+    final password = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text("$action PDF"),
         content: TextField(
           controller: controller,
+          autofocus: true,
           decoration: const InputDecoration(hintText: "Password"),
           obscureText: true,
         ),
@@ -70,333 +82,278 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             child: const Text("Cancel"),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            onPressed: () => Navigator.pop(context, controller.text),
             child: Text(action),
           ),
         ],
       ),
     );
+    controller.dispose();
+    return password;
   }
 
+  String _progressTitle(String tool, int count) => switch (tool) {
+        'Merge PDF' => 'Merging $count PDFs',
+        'Image to PDF' => count == 1 ? 'Creating PDF' : 'Creating PDF from $count images',
+        'Encrypt PDF' => 'Protecting PDF',
+        'Split PDF' => 'Splitting PDF',
+        'Reorder PDF' => 'Reordering $count pages',
+        _ => 'Processing PDF',
+      };
 
+  ProgressDescriber _describeProgress(String tool) => (progress) => switch (progress.stage) {
+        PdfStage.processing when tool == 'Merge PDF' => 'Copying page ${progress.done} of ${progress.total}',
+        PdfStage.processing when tool == 'Image to PDF' => 'Adding image ${progress.done} of ${progress.total}',
+        PdfStage.processing => 'Arranging pages',
+        PdfStage.writing when progress.fraction >= 1 => 'Done',
+        PdfStage.writing when tool == 'Encrypt PDF' => 'Encrypting',
+        PdfStage.writing => 'Saving',
+      };
 
-  void _processFiles() async {
-    final selectedTool = ref.read(selectedToolProvider);
-    // Use fallback to prevent crash if tool is not in the map
-    final currentProvider = fileProviders[selectedTool] ?? mergePdfFilesProvider;
-    final selectedFiles = ref.read(currentProvider);
+  Future<String> _imagesToPdf(List<SelectedFile> files, PdfJob job) async {
+    final result = await PdfEngine.imagesToPdf(
+      files.map((f) => f.path).toList(),
+      rotations: files.map((f) => f.rotation).toList(),
+      fitToImage: ref.read(pageSizeProvider) == PageSize.fit,
+      job: job,
+    );
+    if (result.skipped.isNotEmpty) {
+      final names = result.skipped.map((i) => files[i].name).join(', ');
+      _showMessage("Skipped images that couldn't be read: $names");
+    }
+    return result.path;
+  }
 
-    if (selectedTool == null || selectedFiles.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please select a tool and files first.")),
-      );
+  Future<void> _processFiles() async {
+    final tool = ref.read(selectedToolProvider);
+    final provider = fileProviders[tool];
+    if (tool == null || provider == null) {
+      _showMessage("Please select a tool and files first.");
       return;
     }
+    final files = ref.read(provider);
+    if (files.isEmpty || ref.read(isProcessingProvider)) return;
+
+    // Ask for everything up front so the progress dialog is not interrupted.
+    String? newPassword;
+    List<int>? splitPages;
+    if (tool == 'Encrypt PDF') {
+      newPassword = await _promptPassword(action: "Encrypt");
+      if (newPassword == null) return;
+      if (newPassword.isEmpty) {
+        _showMessage("Please enter a password to encrypt.");
+        return;
+      }
+    } else if (tool == 'Split PDF') {
+      final file = files.first;
+      final PdfInfo info;
+      try {
+        info = await PdfEngine.inspect(file.path, password: file.password);
+      } on PdfFailure catch (failure) {
+        _showMessage(failure.message);
+        return;
+      }
+      if (!mounted) return;
+      splitPages = await SplitPdfDialog.show(context, file, info.pageCount);
+      if (splitPages == null) return;
+    }
+    if (!mounted) return;
 
     ref.read(isProcessingProvider.notifier).state = true;
-
-    // === Show loading dialog immediately ===
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => Builder(
-        builder: (dialogContext) {
-          final isDarkMode = Theme.of(dialogContext).brightness == Brightness.dark;
-          return Dialog(
-            backgroundColor: isDarkMode ? kDarkCard : Colors.white,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      isDarkMode ? kDarkAccent : Colors.blueAccent,
-                    ),
-                  ),
-                  const SizedBox(width: 20),
-                  Flexible(
-                    child: Text(
-                      "Processing PDF...", 
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: isDarkMode ? kDarkText : Colors.black87,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-
-    // Let UI fully render before native call
-    await Future.delayed(const Duration(milliseconds: 200));
-
-    String? initialCachePath;
-
+    String? outputPath;
     try {
-      Uint8List? resultBytes;
-      final filePaths = selectedFiles.map((f) => f.path!).toList();
-
-
-      // --- Native processing ---
-      if (selectedTool == 'Merge PDF') {
-        initialCachePath = await mergePdfNative(filePaths);
-      } else if (selectedTool == 'Image to PDF') {
-        final pageSize = ref.read(pageSizeProvider);
-        final pageMode = pageSize == PageSize.a4 ? "A4" : "FIT";
-        initialCachePath = await imageToPdfNative(filePaths, pageMode);
-      } else if (selectedTool == 'Encrypt PDF') {
-        final password = await _promptPassword(context, action: "Encrypt");
-        if (password == null || password.isEmpty) {
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text("⚠️ Please enter a password to encrypt."),
-                duration: Duration(seconds: 1), // 👈 this goes inside
-              ),
-            );
-            // Dismiss loading dialog before save screen
-            Navigator.pop(context);
-          }
-          return; // ✅ this exits the try block and the function
-        }
-        initialCachePath = await encryptPdfNative(filePaths.first, password); 
-      } else if (selectedTool == 'Split PDF') {
-        // Prompt for page range
-        final range = await SplitPdfDialog.show(context, filePaths.first);
-        if (range == null) {
-          Navigator.pop(context); // Dismiss loading dialog
-          ref.read(isProcessingProvider.notifier).state = false;
-          return;
-        }
-        final start = range['start']!;
-        final end = range['end']!;
-        final pages = [for (int i = start; i <= end; i++) i];
-        final outputPaths = await splitPdfNative(filePaths.first, pages);
-        // For consistency, set initialCachePath to the first output (or handle as needed)
-        initialCachePath = outputPaths;
-      } else if (selectedTool == 'Reorder PDF') {
-        initialCachePath = await mergePdfNative(filePaths);
-      }
-
-      if (initialCachePath == null) {
-        throw Exception("Failed to create temporary PDF file.");
-      }
-
-      final tempFile = File(initialCachePath);
-      if (await tempFile.exists()) {
-        resultBytes = await tempFile.readAsBytes();
-      } else {
-        throw Exception("Temporary file not found at $initialCachePath");
-      }
-
-      ref.read(mergedPdfBytesProvider.notifier).state = resultBytes;
-
-      // Dismiss loading dialog before save screen
-      if (context.mounted) Navigator.pop(context);
-
-      final bool? didSave = await showModalBottomSheet<bool>(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-        builder: (_) => SavePdfOverlay(
-          pdfBytes: resultBytes!,
-        ),
-      );
-
-      if (didSave != true) {
-        if (await tempFile.exists()) {
-          await tempFile.delete();
-          print("Save cancelled. Temp file deleted: $initialCachePath");
-        }
-        return;
-      }
-
-      final outputPath = ref.read(savePathProvider);
-      if (outputPath == null || outputPath.isEmpty) {
-        throw Exception("Save path is missing after successful save.");
-      }
-
-      final recent = ref.read(recentFilesProvider);
-      final updated = [outputPath, ...recent].toSet().toList();
-      ref.read(recentFilesProvider.notifier).state = updated.take(4).toList();
-
-      Navigator.push(
+      outputPath = await runWithProgress(
         context,
-        MaterialPageRoute(
-          builder: (_) => ProcessSuccessScreen(
-            resultPath: outputPath,
-          ),
-        ),
+        title: _progressTitle(tool, files.length),
+        describe: _describeProgress(tool),
+        task: (job) => switch (tool) {
+          'Merge PDF' => PdfEngine.merge(
+              files.map((f) => f.path).toList(),
+              passwords: files.map((f) => f.password).toList(),
+              job: job,
+            ),
+          'Image to PDF' => _imagesToPdf(files, job),
+          'Encrypt PDF' => PdfEngine.encrypt(files.first.path, newPassword!, job: job),
+          'Split PDF' => PdfEngine.extractPages(
+              files.first.path,
+              splitPages!,
+              password: files.first.password,
+              job: job,
+            ),
+          'Reorder PDF' => PdfEngine.extractPages(
+              files.first.path,
+              [for (final f in files) f.pageIndex!],
+              password: files.first.password,
+              rotations: [for (final f in files) f.rotation],
+              job: job,
+            ),
+          _ => throw StateError('Unknown tool: $tool'),
+        },
       );
-    } catch (e) {
-      print("Error in _processFiles: ${e.toString()}");
-
-      // Make sure to close the spinner in case of error
-      if (context.mounted) Navigator.pop(context);
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("An error occurred: ${e.toString()}")),
-      );
+    } on PdfFailure catch (failure) {
+      _showFailure(tool, failure);
+    } catch (e, stack) {
+      debugPrint('$tool failed: $e\n$stack');
+      _showMessage("Something went wrong. Please try again.");
     } finally {
-      ref.read(isProcessingProvider.notifier).state = false;
+      if (mounted) ref.read(isProcessingProvider.notifier).state = false;
     }
+
+    if (outputPath == null || !mounted) return;
+    final source = outputPath;
+    final saved = await SavePdfOverlay.show(
+      context,
+      sourcePath: source,
+      next: (saved) => ProcessSuccessScreen(saved: saved),
+    );
+    if (saved == null) File(source).delete().ignore();
   }
 
-  void _onToolSelect() async {
-    try {
-      final selectedTool = ref.read(selectedToolProvider);
-
-      if (selectedTool == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Please select a tool.")),
-        );
-        return;
-      }
-
-      FilePickerResult? result;
-
-      switch (selectedTool) {
-        case 'Merge PDF':
-          result = await FilePicker.platform.pickFiles(
-            type: FileType.custom,
-            allowedExtensions: ['pdf'],
-            allowMultiple: true,
-            withData: false,
-          );
-          break;
-
-        case 'Image to PDF':
-          result = await FilePicker.platform.pickFiles(
-            type: FileType.image,
-            allowMultiple: true,
-            withData: false,
-          );
-          break;
-
-        case 'Encrypt PDF':
-          result = await FilePicker.platform.pickFiles(
-            type: FileType.custom,
-            allowedExtensions: ['pdf'],
-            allowMultiple: false,
-            withData: false,
-          );
-          break;
-
-        case 'Split PDF':
-          result = await FilePicker.platform.pickFiles(
-            type: FileType.custom,
-            allowedExtensions: ['pdf'],
-            allowMultiple: false,
-            withData: false,
-          );
-          break;
-          
-        case 'Reorder PDF':
-          result = await FilePicker.platform.pickFiles(
-            type: FileType.custom,
-            allowedExtensions: ['pdf'],
-            allowMultiple: false,
-            withData: false,
-          );
-          break;
-      }
-
-      // ✅ Only show loading dialog AFTER user has picked files
-      if (result != null && result.files.isNotEmpty) {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (_) => Builder(
-            builder: (dialogContext) {
-              final isDarkMode = Theme.of(dialogContext).brightness == Brightness.dark;
-              return Dialog(
-                backgroundColor: isDarkMode ? kDarkCard : Colors.white,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          isDarkMode ? kDarkAccent : Colors.blueAccent,
-                        ),
-                      ),
-                      const SizedBox(width: 20),
-                      Flexible(
-                        child: Text(
-                          "Loading files...",
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: isDarkMode ? kDarkText : Colors.black87,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        );
-
-        // Short delay to make dialog visible
-        await Future.delayed(const Duration(milliseconds: 150));
-
-        // ✅ Add files to provider
-        switch (selectedTool) {
-          case 'Merge PDF':
-            ref.read(mergePdfFilesProvider.notifier).addFiles(result.files);
-            break;
-          case 'Image to PDF':
-            ref.read(imageToPdfFilesProvider.notifier).addFiles(result.files);
-            break;
-          case 'Encrypt PDF':
-            ref.read(encryptPdfFilesProvider.notifier).addFiles(result.files);
-            break;
-          case 'Split PDF':
-            ref.read(mergePdfFilesProvider.notifier).addFiles(result.files);
-            break;
-          case 'Reorder PDF':
-            if (result.files.isNotEmpty) {
-              try {
-                // Convert PDF to images and add to provider
-                final imagePaths = await reorderPdfNative(result.files.first.path!);
-                final imageFiles = imagePaths.map((path) => PlatformFile(
-                  name: path.split('/').last,
-                  path: path,
-                  size: 0,
-                )).toList();
-                ref.read(reorderPdfFilesProvider.notifier).addFiles(imageFiles);
-              } catch (e) {
-                debugPrint("Reorder PDF Error: $e");
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text("Failed to process PDF for reordering: ${e.toString()}"),
-                    backgroundColor: Colors.red,
-                    duration: const Duration(seconds: 3),
-                  ),
-                );
-              }
-            }
-            break;
+  /// Opens each picked PDF once: unlocks protected files (or rejects them for
+  /// tools that cannot use them) and drops files that cannot be read.
+  Future<List<(SelectedFile, PdfInfo)>> _admitPdfs(
+    List<SelectedFile> files, {
+    bool rejectProtected = false,
+  }) async {
+    final admitted = <(SelectedFile, PdfInfo)>[];
+    for (final file in files) {
+      try {
+        admitted.add((file, await PdfEngine.inspect(file.path)));
+        continue;
+      } on PdfFailure catch (failure) {
+        if (failure.code != PdfErrorCode.passwordRequired) {
+          _showMessage('"${file.name}": ${failure.message}');
+          continue;
         }
       }
 
-    } catch (e, stackTrace) {
-      debugPrint("Error during tool selection: $e");
-      debugPrint("StackTrace: $stackTrace");
+      if (rejectProtected) {
+        _showMessage('"${file.name}" is already password-protected.');
+        continue;
+      }
+      if (!mounted) break;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Something went wrong while picking files.")),
+      PdfInfo? unlocked;
+      final password = await showPdfPasswordDialog(
+        context,
+        fileName: file.name,
+        verify: (password) async {
+          try {
+            unlocked = await PdfEngine.inspect(file.path, password: password);
+            return true;
+          } on PdfFailure {
+            return false;
+          }
+        },
       );
-    } finally {
-      // ✅ Always dismiss dialog if open
-      if (Navigator.canPop(context)) Navigator.pop(context);
+      final info = unlocked;
+      if (password != null && info != null) {
+        admitted.add((file.copyWith(password: password), info));
+      }
+    }
+    return admitted;
+  }
+
+  /// Copies picked files into the cache when they have no local path and
+  /// converts images MuPDF cannot read, reporting each file as it finishes.
+  /// Cancelling stops waiting; files still in flight are left to the cache.
+  Future<List<SelectedFile>> _loadPicked(
+    List<PlatformFile> picked, {
+    required bool convertImages,
+    required PdfJob job,
+  }) async {
+    var done = 0;
+    job.report(PdfProgress.items(0, picked.length));
+    final cancelled = Completer<Never>();
+    job.onCancel(() => cancelled.completeError(const PdfFailure(PdfErrorCode.cancelled)));
+
+    final loaded = await Future.any([
+      Future.wait(picked.map((file) async {
+        final selected = await SelectedFile.fromPicked(file);
+        final ready = convertImages ? await ensureNativeImage(selected) : selected;
+        job.report(PdfProgress.items(++done, picked.length));
+        return ready;
+      })),
+      cancelled.future,
+    ]);
+
+    final files = loaded.whereType<SelectedFile>().toList();
+    final failed = loaded.length - files.length;
+    if (failed > 0) {
+      _showMessage(failed == 1
+          ? "1 image couldn't be read and was skipped."
+          : "$failed images couldn't be read and were skipped.");
+    }
+    return files;
+  }
+
+  Future<void> _pickFiles() async {
+    final tool = ref.read(selectedToolProvider);
+    if (tool == null) return;
+
+    final List<PlatformFile> picked;
+    try {
+      if (tool == 'Image to PDF') {
+        picked = await FilePicker.pickFiles(type: FileType.image);
+      } else if (tool == 'Merge PDF') {
+        picked = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: ['pdf']);
+      } else {
+        final single = await FilePicker.pickFile(type: FileType.custom, allowedExtensions: ['pdf']);
+        picked = single == null ? [] : [single];
+      }
+    } catch (e) {
+      debugPrint('File picker failed: $e');
+      _showMessage("Couldn't open the file picker.");
+      return;
+    }
+    if (picked.isEmpty || !mounted) return;
+
+    final images = tool == 'Image to PDF';
+    final List<SelectedFile> files;
+    try {
+      files = await runWithProgress(
+        context,
+        title: images ? 'Preparing images' : 'Loading files',
+        describe: (progress) => progress.stage == PdfStage.writing
+            ? 'Done'
+            : '${progress.done} of ${progress.total} ${images ? 'images' : 'files'}',
+        task: (job) => _loadPicked(picked, convertImages: images, job: job),
+      );
+    } on PdfFailure catch (failure) {
+      _showFailure('Loading picked files', failure);
+      return;
+    } catch (e) {
+      debugPrint('Loading picked files failed: $e');
+      _showMessage("Couldn't load the selected files.");
+      return;
+    }
+    if (!mounted) return;
+
+    switch (tool) {
+      case 'Image to PDF':
+        ref.read(imageToPdfFilesProvider.notifier).addFiles(files);
+      case 'Merge PDF':
+        final admitted = await _admitPdfs(files);
+        if (mounted) ref.read(mergePdfFilesProvider.notifier).addFiles([for (final a in admitted) a.$1]);
+      case 'Encrypt PDF':
+        final admitted = await _admitPdfs(files, rejectProtected: true);
+        if (mounted && admitted.isNotEmpty) {
+          ref.read(encryptPdfFilesProvider.notifier).setFiles([admitted.first.$1]);
+        }
+      case 'Split PDF':
+        final admitted = await _admitPdfs(files);
+        if (mounted && admitted.isNotEmpty) {
+          ref.read(splitPdfFilesProvider.notifier).setFiles([admitted.first.$1]);
+        }
+      case 'Reorder PDF':
+        final admitted = await _admitPdfs(files);
+        if (mounted && admitted.isNotEmpty) {
+          final (file, info) = admitted.first;
+          ref.read(reorderPdfFilesProvider.notifier).setFiles([
+            for (var i = 0; i < info.pageCount; i++)
+              SelectedFile(name: 'Page ${i + 1}', path: file.path, password: file.password, pageIndex: i),
+          ]);
+        }
     }
   }
 
@@ -427,8 +384,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // final filesNotifier = ref.read(fileProviders[selectedTool]!.notifier);
     // final selectedFiles = ref.watch(fileProviders[selectedTool]!);
 
-    final isLoading = ref.watch(isFileLoadingProvider);
-    var isProcessing = ref.watch(isProcessingProvider);
+    final isProcessing = ref.watch(isProcessingProvider);
     
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? kDarkBg : const Color(0xFFECEFF1);
@@ -444,7 +400,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       }
     });
 
-    return Scaffold(
+    // Before a slow job's progress dialog appears, nothing else may be tapped.
+    return AbsorbPointer(
+      absorbing: isProcessing,
+      child: Scaffold(
       backgroundColor: bgColor,
       appBar: AppBar(
         elevation: 0,
@@ -459,20 +418,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
         ),
-        leading: const Icon(
-          Icons.picture_as_pdf, // Flutter built-in PDF-looking icon
-          color: Colors.white,
-          size: 26,
-        ),
-        title: const Text(
-          "BLUE PDF",
-          style: TextStyle(
-            fontFamily: 'sans-serif',
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
-          ),
-        ),
+        automaticallyImplyLeading: false,
+        title: const BrandTitle(),
         centerTitle: false,
         actions: [
           IconButton(
@@ -508,13 +455,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         ],
       ),
-      body: LayoutBuilder(
+      body: SafeArea(
+        top: false,
+        child: LayoutBuilder(
         builder: (context, constraints) {
           final isTab = isTablet(context);
           final isDark = Theme.of(context).brightness == Brightness.dark;
           final textColor = isDark ? kDarkText : Colors.black87;
           final secondaryTextColor = isDark ? kDarkSecondaryText : Colors.grey.shade600;
-          final bgColor = isDark ? kDarkBg : const Color(0xFFECEFF1);
           final cardColor = isDark ? kDarkCard : Colors.white;
           final borderColor = isDark ? kDarkBorder : Colors.grey.shade300;
           final gradientColors = isDark
@@ -531,7 +479,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           final double mainFont = isTab ? 22 : 16;
           final double subFont = isTab ? 18 : 14;
           final double buttonFont = isTab ? 18 : 15.5;
-          final double iconSize = isTab ? 36 : 22;
           final double uploadIconSize = isTab ? 38 : 26;
           final double uploadFont = isTab ? 28 : 22;
           final double listTileFont = isTab ? 20 : 14.5;
@@ -583,7 +530,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           );
                           return;
                         }
-                        _onToolSelect(); 
+                        _pickFiles();
                       },
                       child: Container(
                         width: double.infinity,
@@ -598,14 +545,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           borderRadius: BorderRadius.circular(14),
                           boxShadow: [
                             BoxShadow(
-                              color: isDark ? kDarkTeal.withOpacity(0.25) : Colors.blue.withOpacity(0.35),
+                              color: isDark ? kDarkTeal.withValues(alpha: 0.25) : Colors.blue.withValues(alpha: 0.35),
                               blurRadius: 16,
                               spreadRadius: 2,
                               offset: const Offset(0, 6),
                             ),
                           ],
                           border: Border.all(
-                            color: Colors.white.withOpacity(isDark ? 0.08 : 0.1),
+                            color: Colors.white.withValues(alpha: isDark ? 0.08 : 0.1),
                             width: 1,
                           ),
                         ),
@@ -628,38 +575,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       ),
                     ),
 
-                    if (isLoading)
-                      Padding(
-                        padding: EdgeInsets.only(top: screenHeight * (isTab ? 0.05 : 0.03)),
-                        child: Column(
-                          children: [
-                            Text(
-                              "Selected Files",
-                              style: TextStyle(
-                                fontSize: mainFont,
-                                fontWeight: FontWeight.w600,
-                                color: isDark ? kDarkSecondaryText : Colors.grey.shade700,
-                                letterSpacing: 0.3,
-                              ),
-                            ),
-                            SizedBox(height: screenHeight * (isTab ? 0.03 : 0.018)),
-                            SizedBox(
-                              width: isTab ? 36 : 22,
-                              height: isTab ? 36 : 22,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(isDark ? kDarkAccent : Color(0xFF1976D2)),
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
-
-                    else if (selectedFiles.isEmpty)
+                    if (selectedFiles.isEmpty)
                       Padding(
                         padding: EdgeInsets.only(top: screenHeight * (isTab ? 0.03 : 0.02)),
                         child: Text(
-                          "Upload a file to begin. Supported: PDF, JPG, PNG.",
+                          "Upload a file to begin. Supported: PDF, JPG, PNG, HEIC, WebP.",
                           style: TextStyle(
                             fontSize: subFont,
                             fontWeight: FontWeight.w500,
@@ -833,8 +753,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                   child: ReorderableListView.builder(
                                     shrinkWrap: true,
                                     itemCount: selectedFiles.length,
-                                    onReorder: (oldIndex, newIndex) {
-                                      filesNotifier.reorder(oldIndex, newIndex);
+                                    onReorderItem: (oldIndex, newIndex) {
+                                      filesNotifier.move(oldIndex, newIndex);
                                     },
                                     padding: EdgeInsets.zero,
                                     buildDefaultDragHandles: true,
@@ -844,7 +764,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                       IconData iconData;
                                       Color iconColor;
 
-                                      if (file.extension == 'pdf') {
+                                      if (file.pageIndex != null || file.extension == 'pdf') {
                                         iconData = Icons.picture_as_pdf_rounded;
                                         iconColor = isDark ? kDarkAccent : Colors.blueAccent;
                                       } else {
@@ -853,7 +773,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                       }
 
                                       return ListTile(
-                                        key: ValueKey(file.path),
+                                        key: ValueKey(file.id),
                                         dense: !isTab,
                                         visualDensity: isTab ? VisualDensity(vertical: 0) : const VisualDensity(vertical: -4),
                                         contentPadding: EdgeInsets.symmetric(horizontal: isTab ? 24 : 12),
@@ -870,22 +790,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                           },
                                           child: Icon(Icons.close_rounded, color: Colors.redAccent, size: closeIcon),
                                         ),
-                                        onTap: () async {
-                                          final filePath = file.path!;
-                                          ref.read(selectedFilePathProvider.notifier).state = filePath;
-
-                                          if (file.extension == 'pdf') {
-                                            await OpenFilex.open(filePath);
-                                          } else if ([
-                                            'jpg', 'jpeg', 'png', 'gif'
-                                          ].contains(file.extension!.toLowerCase())) {
-                                            await OpenFilex.open(filePath);
-                                          } else {
-                                            ScaffoldMessenger.of(context).showSnackBar(
-                                              const SnackBar(content: Text("Unsupported file type.")),
-                                            );
-                                          }
-                                        },
+                                        onTap: () => OpenFilex.open(file.path),
                                       );
                                     },
                                   ),
@@ -912,7 +817,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             borderRadius: BorderRadius.circular(30),
                             boxShadow: [
                               BoxShadow(
-                                color: (isDark ? kDarkAccent : Colors.blueAccent).withOpacity(0.3),
+                                color: (isDark ? kDarkAccent : Colors.blueAccent).withValues(alpha: 0.3),
                                 blurRadius: 10,
                                 offset: const Offset(0, 4),
                               ),
@@ -922,15 +827,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             color: Colors.transparent,
                             child: InkWell(
                               borderRadius: BorderRadius.circular(30),
-                              onTap: _processFiles,
+                              onTap: isProcessing ? null : _processFiles,
                               child: Center(
                                 child: Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Icon(Icons.play_arrow_rounded, size: isTab ? 30 : 22, color: Colors.white),
+                                    if (isProcessing)
+                                      SizedBox.square(
+                                        dimension: isTab ? 24 : 18,
+                                        child: const CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+                                      )
+                                    else
+                                      Icon(Icons.play_arrow_rounded, size: isTab ? 30 : 22, color: Colors.white),
                                     SizedBox(width: isTab ? 14 : 8),
                                     Text(
-                                      "Process",
+                                      isProcessing ? "Processing" : "Process",
                                       style: TextStyle(
                                         fontSize: buttonFont,
                                         fontWeight: FontWeight.w600,
@@ -1013,7 +924,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                           style: TextStyle(
                                             fontSize: subFont,
                                             fontWeight: FontWeight.w400,
-                                            color: textColor.withOpacity(0.55),
+                                            color: textColor.withValues(alpha: 0.55),
                                             letterSpacing: 0.2,
                                           ),
                                           maxLines: 3,
@@ -1051,12 +962,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               if (viewMode == ViewMode.grid && selectedFiles.isNotEmpty)
                 Positioned.fill(
                   child: Container(
-                    color: Colors.black.withOpacity(0.3),
+                    color: Colors.black.withValues(alpha: 0.3),
                     child: Center(
                       child: GridViewOverlay(
                         files: selectedFiles,
                         onRemoveFile: (index) => filesNotifier.removeFileAt(index),
-                        onReorder: (oldIndex, newIndex) => filesNotifier.reorder(oldIndex, newIndex),
+                        onReorder: (oldIndex, newIndex) => filesNotifier.move(oldIndex, newIndex),
+                        onRotate: (index) => filesNotifier.rotateClockwise(index),
                         isDark: isDark,
                         textColor: textColor,
                         cardColor: cardColor,
@@ -1075,7 +987,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ],
           );
         },
+        ),
       ),
+    ),
     );
   }
 }

@@ -146,7 +146,7 @@ class PrivacyPolicyPage extends StatelessWidget {
         boxShadow: cardColor == Colors.white
             ? [
                 BoxShadow(
-                  color: Colors.grey.withOpacity(0.1),
+                  color: Colors.grey.withValues(alpha: 0.1),
                   spreadRadius: 1,
                   blurRadius: 5,
                   offset: const Offset(0, 3),
@@ -182,9 +182,9 @@ class PrivacyPolicyPage extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
       decoration: BoxDecoration(
-        color: isDarkMode ? _primaryBlue.withOpacity(0.3) : _primaryBlue.withOpacity(0.08),
+        color: isDarkMode ? _primaryBlue.withValues(alpha: 0.3) : _primaryBlue.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _primaryBlue.withOpacity(0.5)),
+        border: Border.all(color: _primaryBlue.withValues(alpha: 0.5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

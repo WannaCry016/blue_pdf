@@ -1,21 +1,17 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 enum ViewMode { list, grid }
 
 // Page size enum for Image to PDF
 enum PageSize { a4, fit }
 
-var selectedToolProvider = StateProvider<String?>((ref) => null);
-var recentFilesProvider = StateProvider<List<String>>((ref) => []);
-var isFileLoadingProvider = StateProvider<bool>((ref) => false);
+final selectedToolProvider = StateProvider<String?>((ref) => null);
 final isProcessingProvider = StateProvider<bool>((ref) => false);
-final savePathProvider = StateProvider<String?>((ref) => null);
-final mergedPdfBytesProvider = StateProvider<Uint8List?>((ref) => null);
-final cachePathProvider = StateProvider<String?>((ref) => null);
 final viewModeProvider = StateProvider<ViewMode>((ref) => ViewMode.list);
 final pageSizeProvider = StateProvider<PageSize>((ref) => PageSize.a4);
 
@@ -28,79 +24,99 @@ class ThemePrefs {
     await prefs.setString(_themeKey, mode.name); // mode.name returns 'light', 'dark', or 'system'
   }
 
-  // Load theme mode
-  static Future<ThemeMode> loadThemeMode() async {
-    final prefs = await SharedPreferences.getInstance();
-    final themeStr = prefs.getString(_themeKey) ?? 'light';
+  static ThemeMode themeModeFrom(SharedPreferences prefs) =>
+      switch (prefs.getString(_themeKey)) {
+        'dark' => ThemeMode.dark,
+        'system' => ThemeMode.system,
+        _ => ThemeMode.light,
+      };
+}
 
-    switch (themeStr) {
-      case 'dark':
-        return ThemeMode.dark;
-      case 'system':
-        return ThemeMode.system;
-      case 'light':
-      default:
-        return ThemeMode.light;
-    }
+/// A file chosen by the user (picked, captured, or generated), always backed by a local path.
+class SelectedFile {
+  final String name;
+  final String path;
+
+  /// Password that unlocked this PDF, if it is protected.
+  final String? password;
+
+  /// Extra clockwise rotation chosen by the user (0, 90, 180 or 270).
+  final int rotation;
+
+  /// Set when this entry is a single page (0-based) of the PDF at [path].
+  final int? pageIndex;
+
+  const SelectedFile({
+    required this.name,
+    required this.path,
+    this.password,
+    this.rotation = 0,
+    this.pageIndex,
+  });
+
+  factory SelectedFile.fromPath(String path) =>
+      SelectedFile(name: p.basename(path), path: path);
+
+  /// Unique within a list, even when several entries are pages of one PDF.
+  String get id => pageIndex == null ? path : '$path#$pageIndex';
+
+  SelectedFile copyWith({String? name, String? path, String? password, int? rotation}) =>
+      SelectedFile(
+        name: name ?? this.name,
+        path: path ?? this.path,
+        password: password ?? this.password,
+        rotation: rotation ?? this.rotation,
+        pageIndex: pageIndex,
+      );
+
+  String? get extension {
+    final ext = p.extension(name);
+    return ext.isEmpty ? null : ext.substring(1).toLowerCase();
+  }
+
+  /// Picked files without a local path (content URIs) are copied into the cache.
+  static Future<SelectedFile> fromPicked(PlatformFile file) async {
+    final localPath = file.path;
+    if (localPath != null) return SelectedFile(name: file.name, path: localPath);
+
+    final dir = await getTemporaryDirectory();
+    final copy = File(p.join(dir.path, '${DateTime.now().microsecondsSinceEpoch}_${file.name}'));
+    await copy.writeAsBytes(await file.readAsBytes());
+    return SelectedFile(name: file.name, path: copy.path);
   }
 }
 
-
-var selectedFilePathProvider = StateProvider<String?>((ref) => null);
 final imageToPdfFilesProvider =
-    StateNotifierProvider<SelectedFilesNotifier, List<PlatformFile>>(
+    StateNotifierProvider<SelectedFilesNotifier, List<SelectedFile>>(
         (ref) => SelectedFilesNotifier());
 
 final mergePdfFilesProvider =
-    StateNotifierProvider<SelectedFilesNotifier, List<PlatformFile>>(
+    StateNotifierProvider<SelectedFilesNotifier, List<SelectedFile>>(
         (ref) => SelectedFilesNotifier());
 
 final encryptPdfFilesProvider =
-    StateNotifierProvider<SelectedFilesNotifier, List<PlatformFile>>(
+    StateNotifierProvider<SelectedFilesNotifier, List<SelectedFile>>(
         (ref) => SelectedFilesNotifier());
 
 final splitPdfFilesProvider =
-    StateNotifierProvider<SelectedFilesNotifier, List<PlatformFile>>(
+    StateNotifierProvider<SelectedFilesNotifier, List<SelectedFile>>(
         (ref) => SelectedFilesNotifier());
 
 final reorderPdfFilesProvider =
-    StateNotifierProvider<SelectedFilesNotifier, List<PlatformFile>>(
+    StateNotifierProvider<SelectedFilesNotifier, List<SelectedFile>>(
         (ref) => SelectedFilesNotifier());
 
-class SelectedFilesNotifier extends StateNotifier<List<PlatformFile>> {
+class SelectedFilesNotifier extends StateNotifier<List<SelectedFile>> {
   SelectedFilesNotifier() : super([]);
 
-  void setFiles(List<PlatformFile> files) {
+  void setFiles(List<SelectedFile> files) {
     state = files;
   }
 
-  void addFiles(List<PlatformFile> files) async {
-    // Show file names immediately
-    state = [...state, ...files];
-
-    // Start background loading of bytes
-    for (int i = 0; i < files.length; i++) {
-      final file = files[i];
-      if (file.path != null) {
-        final fileData = await File(file.path!).readAsBytes();
-
-        final updatedFile = PlatformFile(
-          name: file.name,
-          path: file.path,
-          bytes: fileData,
-          size: fileData.length,
-        );
-
-        // Update only the one file in state (preserving index order)
-        state = [
-          for (int j = 0; j < state.length; j++)
-            if (j == state.length - files.length + i)
-              updatedFile
-            else
-              state[j],
-        ];
-      }
-    }
+  /// Appends [files], skipping any already in the list (ids must stay unique).
+  void addFiles(List<SelectedFile> files) {
+    final ids = {for (final f in state) f.id};
+    state = [...state, ...files.where((f) => ids.add(f.id))];
   }
 
   void removeFileAt(int index) {
@@ -108,56 +124,20 @@ class SelectedFilesNotifier extends StateNotifier<List<PlatformFile>> {
     state = newList;
   }
 
-  void reorder(int oldIndex, int newIndex) {
+  void rotateClockwise(int index) {
+    final file = state[index];
+    state = [...state]..[index] = file.copyWith(rotation: (file.rotation + 90) % 360);
+  }
+
+  /// Moves the item at [from] so it ends up at index [to] in the new list.
+  void move(int from, int to) {
     final updatedList = [...state];
-    if (newIndex > oldIndex) newIndex--;
-    final item = updatedList.removeAt(oldIndex);
-    updatedList.insert(newIndex, item);
+    final item = updatedList.removeAt(from);
+    updatedList.insert(to, item);
     state = updatedList;
   }
 
   void clear() {
     state = [];
-  }
-}
-
-final recentCreatedFilesProvider = StateNotifierProvider<RecentFilesNotifier, List<String>>(
-  (ref) => RecentFilesNotifier(),
-);
-
-
-class RecentFilesNotifier extends StateNotifier<List<String>> {
-  static const _key = 'recent_created_files';
-
-  RecentFilesNotifier() : super([]) {
-    _loadFromPrefs();
-  }
-
-  void _loadFromPrefs() async {
-    final prefs = await SharedPreferences.getInstance();
-    final files = prefs.getStringList(_key) ?? [];
-    state = files;
-  }
-
-  void _saveToPrefs() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(_key, state);
-  }
-
-  void addFile(String path) {
-    if (!state.contains(path)) {
-      state = [path, ...state];
-      _saveToPrefs();
-    }
-  }
-
-  void removeFile(String path) {
-    state = state.where((p) => p != path).toList();
-    _saveToPrefs();
-  }
-
-  void clear() {
-    state = [];
-    _saveToPrefs();
   }
 }

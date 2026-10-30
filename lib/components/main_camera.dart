@@ -2,7 +2,6 @@ import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:blue_pdf/main.dart';
 import 'package:blue_pdf/state_providers.dart';
 
 class CameraCaptureScreen extends ConsumerStatefulWidget {
@@ -15,7 +14,9 @@ class CameraCaptureScreen extends ConsumerStatefulWidget {
 }
 
 class _CameraCaptureScreenState extends ConsumerState<CameraCaptureScreen> {
-  late CameraController _controller;
+  static List<CameraDescription>? _cameras;
+
+  CameraController? _controller;
   bool _isInitialized = false;
   bool _isCapturing = false;
   bool _isFlashOn = false;
@@ -66,15 +67,35 @@ class _CameraCaptureScreenState extends ConsumerState<CameraCaptureScreen> {
   }
 
   Future<void> _initializeCamera(CameraLensDirection direction) async {
-    final camera = cameras.firstWhere((c) => c.lensDirection == direction);
-    _controller = CameraController(
+    try {
+      _cameras ??= await availableCameras();
+    } catch (e) {
+      debugPrint("Camera lookup failed: $e");
+    }
+    if (!mounted) return;
+
+    final cameras = _cameras ?? const <CameraDescription>[];
+    if (cameras.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("No camera available on this device.")),
+      );
+      Navigator.pop(context);
+      return;
+    }
+    final camera = cameras.firstWhere(
+      (c) => c.lensDirection == direction,
+      orElse: () => cameras.first,
+    );
+    final controller = CameraController(
       camera,
       ResolutionPreset.high,
       enableAudio: false,
     );
+    _controller = controller;
 
     try {
-      await _controller.initialize();
+      await controller.initialize();
+      if (!mounted || _controller != controller) return;
       setState(() {
         _isInitialized = true;
         _isFlashOn = false;
@@ -85,11 +106,12 @@ class _CameraCaptureScreenState extends ConsumerState<CameraCaptureScreen> {
   }
 
   void _toggleFlash() async {
-    if (!_controller.value.isInitialized) return;
+    final controller = _controller;
+    if (controller == null || !controller.value.isInitialized) return;
     try {
       _isFlashOn
-          ? await _controller.setFlashMode(FlashMode.off)
-          : await _controller.setFlashMode(FlashMode.torch);
+          ? await controller.setFlashMode(FlashMode.off)
+          : await controller.setFlashMode(FlashMode.torch);
       setState(() => _isFlashOn = !_isFlashOn);
     } catch (e) {
       debugPrint("Flash error: $e");
@@ -105,28 +127,32 @@ class _CameraCaptureScreenState extends ConsumerState<CameraCaptureScreen> {
           : CameraLensDirection.back;
     });
 
-    await _controller.dispose();
+    final previous = _controller;
+    _controller = null;
+    await previous?.dispose();
     await _initializeCamera(_currentLens);
   }
 
   Future<void> _takePicture() async {
-    if (_isCapturing || !_controller.value.isInitialized) return;
+    final controller = _controller;
+    if (_isCapturing || controller == null || !controller.value.isInitialized) return;
     setState(() => _isCapturing = true);
 
     try {
-      final file = await _controller.takePicture();
+      final file = await controller.takePicture();
       if (mounted) {
-        Navigator.pop(context, File(file.path)); // ✅ Only return, don't save
+        Navigator.pop(context, File(file.path));
       }
     } catch (e) {
       debugPrint("Capture failed: $e");
     } finally {
-      setState(() => _isCapturing = false);
+      if (mounted) setState(() => _isCapturing = false);
     }
   }
 
   void _handleTapFocus(TapDownDetails details, BoxConstraints constraints) {
-    if (!_controller.value.isInitialized) return;
+    final controller = _controller;
+    if (controller == null || !controller.value.isInitialized) return;
 
     final RenderBox box = context.findRenderObject() as RenderBox;
     final Offset localPoint = box.globalToLocal(details.globalPosition);
@@ -144,17 +170,17 @@ class _CameraCaptureScreenState extends ConsumerState<CameraCaptureScreen> {
       if (mounted) setState(() => _showFocusRect = false);
     });
 
-    _controller.setFocusPoint(focusPoint).catchError((e) {
+    controller.setFocusPoint(focusPoint).catchError((e) {
       debugPrint("Focus error: $e");
     });
-    _controller.setExposurePoint(focusPoint).catchError((e) {
+    controller.setExposurePoint(focusPoint).catchError((e) {
       debugPrint("Exposure error: $e");
     });
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _controller?.dispose();
     super.dispose();
   }
 
@@ -164,7 +190,7 @@ class _CameraCaptureScreenState extends ConsumerState<CameraCaptureScreen> {
 
     return Scaffold(
       backgroundColor: Colors.black,
-      body: !_isInitialized
+      body: !_isInitialized || _controller == null
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
@@ -178,7 +204,7 @@ class _CameraCaptureScreenState extends ConsumerState<CameraCaptureScreen> {
                             _handleTapFocus(details, constraints),
                         child: Stack(
                           children: [
-                            CameraPreview(_controller),
+                            CameraPreview(_controller!),
                             if (_showFocusRect && _tapOffset != null)
                               Positioned(
                                 left: _tapOffset!.dx - 20,
@@ -242,7 +268,7 @@ class _CameraCaptureScreenState extends ConsumerState<CameraCaptureScreen> {
                             shape: BoxShape.circle,
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.4),
+                                color: Colors.black.withValues(alpha: 0.4),
                                 blurRadius: 8,
                                 offset: const Offset(0, 4),
                               ),

@@ -16,3 +16,8 @@ cd mupdf
 git submodule update --init --recursive
 
 cmd.exe /c "C:\Users\HP\AppData\Local\Android\Sdk\ndk\28.0.13004108\ndk-build.cmd" NDK_PROJECT_PATH=E:\PDF\blue_pdf\mupdf\platform\java APP_BUILD_SCRIPT=E:\PDF\blue_pdf\mupdf\platform\java\Android.mk
+
+# Bugs
+- [] Got error while trying to open a pdf file with a password.
+- [] Got the images rotated 90 degrees when converting image to pdf
+- [] After converting the size not specified and the path is little weird

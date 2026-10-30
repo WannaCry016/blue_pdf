@@ -4,13 +4,25 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 
 class OnboardingScreen extends StatefulWidget {
+  const OnboardingScreen({super.key});
+
   @override
-  _OnboardingScreenState createState() => _OnboardingScreenState();
+  State<OnboardingScreen> createState() => _OnboardingScreenState();
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
   final PageController _controller = PageController();
   bool isLastPage = false;
+
+  Future<void> _finishOnboarding() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('seenOnboarding', true);
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const HomeScreen()),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -49,14 +61,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               top: 20,
               right: 20,
               child: TextButton(
-                onPressed: () async {
-                  final prefs = await SharedPreferences.getInstance();
-                  prefs.setBool('seenOnboarding', true);
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(builder: (_) => HomeScreen()),
-                  );
-                },
+                onPressed: _finishOnboarding,
                 style: TextButton.styleFrom(
                   foregroundColor: Colors.grey[600],
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -134,7 +139,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               color: Colors.grey[50],
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 20,
                   offset: const Offset(0, 10),
                 ),
@@ -229,21 +234,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   borderRadius: BorderRadius.circular(25),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.blue.withOpacity(0.3),
+                      color: Colors.blue.withValues(alpha: 0.3),
                       blurRadius: 15,
                       offset: const Offset(0, 8),
                     ),
                   ],
                 ),
                 child: ElevatedButton.icon(
-                  onPressed: () async {
-                    final prefs = await SharedPreferences.getInstance();
-                    prefs.setBool('seenOnboarding', true);
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(builder: (_) => HomeScreen()),
-                    );
-                  },
+                  onPressed: _finishOnboarding,
                   icon: const Icon(Icons.rocket_launch, size: 20),
                   label: const Text('Get Started'),
                   style: ElevatedButton.styleFrom(

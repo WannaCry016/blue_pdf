@@ -2,6 +2,7 @@ import 'package:blue_pdf/components/privacy_policy_page.dart';
 import 'package:flutter/material.dart' hide LicensePage;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:blue_pdf/components/license.dart';
+import 'package:blue_pdf/services/update_service.dart';
 
 class AboutPage extends StatelessWidget {
   const AboutPage({super.key});
@@ -21,7 +22,6 @@ class AboutPage extends StatelessWidget {
     final borderColor = isDark ? const Color(0xFF232A3B) : Colors.grey.shade300;
     final textColor = isDark ? Colors.white : Colors.black87;
     final secondaryTextColor = isDark ? const Color(0xFFB0B8C1) : Colors.grey;
-    final accent = isDark ? const Color(0xFF2979FF) : const Color(0xFF1976D2);
     final gradientColors = isDark
         ? [const Color(0xFF2979FF), const Color(0xFF536DFE), const Color(0xFF00B8D4)]
         : [const Color(0xFF0D47A1), const Color(0xFF1976D2)];
@@ -92,6 +92,14 @@ class AboutPage extends StatelessWidget {
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 13.5, height: 1.5, color: isDark ? Colors.white70 : Colors.black87),
             ),
+            const SizedBox(height: 10),
+            FutureBuilder<String>(
+              future: UpdateService.getCurrentVersion(),
+              builder: (context, snapshot) => Text(
+                snapshot.hasData ? "Version ${snapshot.data}" : "",
+                style: TextStyle(fontSize: 12.5, color: secondaryTextColor),
+              ),
+            ),
           ],
         ),
       ),
@@ -158,7 +166,7 @@ class AboutPage extends StatelessWidget {
       child: Column(
         children: [
           CircleAvatar(
-            backgroundColor: color.withOpacity(0.1),
+            backgroundColor: color.withValues(alpha: 0.1),
             radius: 22,
             child: Icon(icon, color: color, size: 24),
           ),

@@ -2,10 +2,14 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:blue_pdf/state_providers.dart';
 import 'package:share_plus/share_plus.dart';
-import 'about_page.dart';  // adjust as per your project structure
+import 'about_page.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:open_filex/open_filex.dart';
-import 'package:path_provider/path_provider.dart';
+import '../components/brand_title.dart';
+import '../components/save_pdf.dart' show SavedPdf;
+import '../utils/cache_cleaner.dart';
+import '../pdf/pdf_engine.dart';
+import '../utils/saved_location.dart';
 
 // Responsive helper: returns true if device is a tablet (width > 600dp)
 bool isTablet(BuildContext context) {
@@ -14,54 +18,67 @@ bool isTablet(BuildContext context) {
 }
 
 class ProcessSuccessScreen extends ConsumerStatefulWidget {
-  final String resultPath;
+  final SavedPdf saved;
 
-  const ProcessSuccessScreen({super.key, required this.resultPath});
+  const ProcessSuccessScreen({super.key, required this.saved});
 
   @override
   ConsumerState<ProcessSuccessScreen> createState() => _ProcessSuccessScreenState();
 }
 
+class _FileDetails {
+  const _FileDetails(this.name, this.subtitle);
+  final String name;
+  final String subtitle;
+}
+
 class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
+  late final Future<_FileDetails> _details = _loadDetails();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(mergePdfFilesProvider.notifier).clear();
+      ref.read(imageToPdfFilesProvider.notifier).clear();
+      ref.read(encryptPdfFilesProvider.notifier).clear();
+      ref.read(splitPdfFilesProvider.notifier).clear();
+      ref.read(reorderPdfFilesProvider.notifier).clear();
+    });
+  }
+
+  /// The picker lets the user rename the file and Downloads saves clashes as
+  /// "name (1).pdf", so ask the provider for the real name first.
+  Future<_FileDetails> _loadDetails() async {
+    final saved = widget.saved;
+    SavedDocument document = const SavedDocument();
+    try {
+      document = await PdfEngine.describeSaved(saved.location);
+    } catch (e) {
+      debugPrint('Could not describe saved file: $e');
+    }
+    final name = document.name ?? saved.fileName;
+    int? size = document.size;
+    if (size == null) {
+      try {
+        size = await File(saved.localPath).length();
+      } catch (_) {}
+    }
+    final folder = saved.folder ?? savedFolder(saved.location);
+    final parts = [
+      if (size != null) formatFileSize(size),
+      if (folder != null) 'Saved to $folder',
+    ];
+    return _FileDetails(name, parts.isEmpty ? 'Saved' : parts.join('  •  '));
+  }
+
   @override
   void dispose() {
-    _clearAppCache();
+    // The job is done and saved, so its inputs, result and thumbnails can go.
+    clearCache(before: DateTime.now()).ignore();
     super.dispose();
   }
 
-  void _clearAppCache() async {
-    try {
-      final cacheDir = await getTemporaryDirectory();
-
-      if (await cacheDir.exists()) {
-        final files = cacheDir.listSync();
-        for (final file in files) {
-          try {
-            if (file is File || file is Directory) {
-              await file.delete(recursive: true);
-            }
-          } catch (e) {
-            print("⚠️ Error deleting ${file.path}: $e");
-          }
-        }
-        print("🧹 Cache directory cleared: ${cacheDir.path}");
-      }
-    } catch (e) {
-      print("❌ Failed to clear cache: $e");
-    }
-  }
-
-
-  String _getFileSize(String path) {
-    try {
-      final file = File(path);
-      final sizeInBytes = file.lengthSync();
-      final sizeInKB = (sizeInBytes / 1024).toStringAsFixed(1);
-      return "$sizeInKB KB";
-    } catch (_) {
-      return "Unknown Size";
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -77,17 +94,7 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
         ? [const Color(0xFF2979FF), const Color(0xFF536DFE), const Color(0xFF00B8D4)]
         : [const Color(0xFF0D47A1), const Color(0xFF1976D2)];
 
-    final cachePath = ref.watch(cachePathProvider)!;
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(mergePdfFilesProvider.notifier).clear();
-      ref.read(imageToPdfFilesProvider.notifier).clear();
-      ref.read(encryptPdfFilesProvider.notifier).clear();
-      ref.read(splitPdfFilesProvider.notifier).clear();
-      ref.read(reorderPdfFilesProvider.notifier).clear();
-    });
-
-    final fileSize = _getFileSize(widget.resultPath);
+    final localPath = widget.saved.localPath;
 
     // Responsive sizes
     final double mainFont = isTab ? 36 : 28;
@@ -123,20 +130,8 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
             ),
           ),
         ),
-        leading: Icon(
-          Icons.picture_as_pdf,
-          color: Colors.white,
-          size: isTab ? 38 : 26,
-        ),
-        title: Text(
-          "BLUE PDF",
-          style: TextStyle(
-            fontFamily: 'sans-serif',
-            fontSize: isTab ? 28 : 20,
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
-          ),
-        ),
+        automaticallyImplyLeading: false,
+        title: isTab ? const BrandTitle(logoSize: 40, fontSize: 28) : const BrandTitle(),
         centerTitle: false,
         actions: [
           IconButton(
@@ -169,7 +164,7 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: isDark ? accent.withOpacity(0.18) : Colors.blue.withOpacity(0.18),
+                              color: isDark ? accent.withValues(alpha: 0.18) : Colors.blue.withValues(alpha: 0.18),
                               blurRadius: isTab ? 28 : 18,
                               offset: const Offset(0, 6),
                             ),
@@ -198,7 +193,7 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
                         style: TextStyle(
                           fontSize: quoteFont,
                           fontStyle: FontStyle.italic,
-                          color: secondaryTextColor.withOpacity(0.7),
+                          color: secondaryTextColor.withValues(alpha: 0.7),
                           height: 1.4,
                         ),
                         textAlign: TextAlign.center,
@@ -229,25 +224,31 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
                             Icon(Icons.picture_as_pdf, size: iconSize, color: Colors.redAccent),
                             SizedBox(width: isTab ? 24 : 14),
                             Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    widget.resultPath,
-                                    style: TextStyle(
-                                      fontSize: cardFont,
-                                      fontWeight: FontWeight.w600,
-                                      color: textColor,
-                                    ),
-                                    maxLines: isTab ? 3 : 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  SizedBox(height: isTab ? 8 : 4),
-                                  Text(
-                                    fileSize,
-                                    style: TextStyle(fontSize: fileSizeFont, color: secondaryTextColor),
-                                  ),
-                                ],
+                              child: FutureBuilder<_FileDetails>(
+                                future: _details,
+                                builder: (context, snapshot) {
+                                  final details = snapshot.data;
+                                  return Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        details?.name ?? widget.saved.fileName,
+                                        style: TextStyle(
+                                          fontSize: cardFont,
+                                          fontWeight: FontWeight.w600,
+                                          color: textColor,
+                                        ),
+                                        maxLines: isTab ? 3 : 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      SizedBox(height: isTab ? 8 : 4),
+                                      Text(
+                                        details?.subtitle ?? '',
+                                        style: TextStyle(fontSize: fileSizeFont, color: secondaryTextColor),
+                                      ),
+                                    ],
+                                  );
+                                },
                               ),
                             ),
                           ],
@@ -271,8 +272,8 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
                                 boxShadow: [
                                   BoxShadow(
                                     color: isDark 
-                                      ? accent.withOpacity(0.13) 
-                                      : Colors.blue.withOpacity(0.08),
+                                      ? accent.withValues(alpha: 0.13) 
+                                      : Colors.blue.withValues(alpha: 0.08),
                                     blurRadius: isTab ? 12 : 6,
                                     offset: const Offset(0, 2),
                                   ),
@@ -280,30 +281,25 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
                                 // Add subtle border for light theme
                                 border: isDark 
                                   ? null 
-                                  : Border.all(color: Colors.blue.withOpacity(0.1), width: 0.5),
+                                  : Border.all(color: Colors.blue.withValues(alpha: 0.1), width: 0.5),
                               ),
                               child: ElevatedButton.icon(
                                 icon: Icon(Icons.picture_as_pdf_rounded, color: Colors.white, size: buttonIcon),
                                 label: Text("Preview", style: TextStyle(fontSize: buttonFont, color: Colors.white, fontWeight: FontWeight.w500)),
                                 onPressed: () async {
-                                  final file = File(cachePath);
-
-                                  if (await file.exists()) {
-                                    final result = await OpenFilex.open(
-                                      file.path,
-                                      type: "application/pdf",
+                                  final messenger = ScaffoldMessenger.of(context);
+                                  final file = File(localPath);
+                                  if (!await file.exists()) {
+                                    messenger.showSnackBar(
+                                      const SnackBar(content: Text("The preview copy is no longer available.")),
                                     );
-
-                                    if (result.type != ResultType.done) {
-                                      print('❌ Could not open file: ${result.message}');
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(content: Text("Failed to open PDF viewer.")),
-                                      );
-                                    }
-                                  } else {
-                                    print('❌ Preview file missing: ${file.path}');
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text("File not found in cache.")),
+                                    return;
+                                  }
+                                  final result = await OpenFilex.open(file.path, type: "application/pdf");
+                                  if (result.type != ResultType.done) {
+                                    debugPrint('Could not open file: ${result.message}');
+                                    messenger.showSnackBar(
+                                      const SnackBar(content: Text("No app is available to open PDFs.")),
                                     );
                                   }
                                 },
@@ -330,8 +326,8 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
                                 boxShadow: [
                                   BoxShadow(
                                     color: isDark 
-                                      ? accent.withOpacity(0.13) 
-                                      : Colors.blue.withOpacity(0.08),
+                                      ? accent.withValues(alpha: 0.13) 
+                                      : Colors.blue.withValues(alpha: 0.08),
                                     blurRadius: isTab ? 12 : 6,
                                     offset: const Offset(0, 2),
                                   ),
@@ -339,25 +335,20 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
                                 // Add subtle border for light theme
                                 border: isDark 
                                   ? null 
-                                  : Border.all(color: Colors.blue.withOpacity(0.1), width: 0.5),
+                                  : Border.all(color: Colors.blue.withValues(alpha: 0.1), width: 0.5),
                               ),
                               child: ElevatedButton.icon(
                                 icon: Icon(Icons.share, color: Colors.white, size: buttonIcon),
                                 label: Text("Share", style: TextStyle(fontSize: buttonFont, color: Colors.white, fontWeight: FontWeight.w500)),
                                 onPressed: () async {
-                                  final file = File(cachePath);
-                                  if (await file.exists()) {
-                                    try {
-                                      await SharePlus.instance.share(
-                                        ShareParams(
-                                          files: [XFile(file.path, mimeType: 'application/pdf')],
-                                        ),
-                                      );
-                                    } catch (e) {
-                                      print('❌ Share failed: ${e}');
-                                    }
-                                  } else {
-                                    print('❌ Cache file not found: ${file.path}');
+                                  final file = File(localPath);
+                                  if (!await file.exists()) return;
+                                  try {
+                                    await SharePlus.instance.share(
+                                      ShareParams(files: [XFile(file.path, mimeType: 'application/pdf')]),
+                                    );
+                                  } catch (e) {
+                                    debugPrint('Share failed: $e');
                                   }
                                 },
                                 style: ElevatedButton.styleFrom(
@@ -389,8 +380,8 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
                             boxShadow: [
                               BoxShadow(
                                 color: isDark 
-                                  ? accent.withOpacity(0.13) 
-                                  : Colors.blue.withOpacity(0.08),
+                                  ? accent.withValues(alpha: 0.13) 
+                                  : Colors.blue.withValues(alpha: 0.08),
                                 blurRadius: isTab ? 12 : 6,
                                 offset: const Offset(0, 2),
                               ),
@@ -398,7 +389,7 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
                             // Add subtle border for light theme
                             border: isDark 
                               ? null 
-                              : Border.all(color: Colors.blue.withOpacity(0.1), width: 0.5),
+                              : Border.all(color: Colors.blue.withValues(alpha: 0.1), width: 0.5),
                           ),
                           child: ElevatedButton.icon(
                             icon: Icon(Icons.home, color: Colors.white, size: buttonIcon),

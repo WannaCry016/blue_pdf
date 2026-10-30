@@ -14,12 +14,12 @@ class UpdateService {
       // Check if update is available
       final AppUpdateInfo updateInfo = await InAppUpdate.checkForUpdate();
 
-      if (updateInfo.updateAvailability == UpdateAvailability.updateAvailable) {
-        // Show update dialog
+      if (updateInfo.updateAvailability == UpdateAvailability.updateAvailable &&
+          context.mounted) {
         _showUpdateDialog(context, updateInfo);
       }
     } catch (e) {
-      print('Error checking for update: $e');
+      debugPrint('Error checking for update: $e');
     } finally {
       _isCheckingForUpdate = false;
     }
@@ -40,7 +40,7 @@ class UpdateService {
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withValues(alpha: 0.1),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
@@ -179,7 +179,7 @@ class UpdateService {
     try {
       await InAppUpdate.performImmediateUpdate();
     } catch (e) {
-      print('Error performing immediate update: $e');
+      debugPrint('Error performing immediate update: $e');
     }
   }
 
@@ -191,10 +191,10 @@ class UpdateService {
       // Listen for download completion
       InAppUpdate.completeFlexibleUpdate().then((_) {
         // Show snackbar or restart app
-        print('Flexible update completed');
+        debugPrint('Flexible update completed');
       });
     } catch (e) {
-      print('Error performing flexible update: $e');
+      debugPrint('Error performing flexible update: $e');
     }
   }
 
@@ -202,7 +202,8 @@ class UpdateService {
   static Future<void> checkForCriticalUpdate(BuildContext context) async {
     try {
       final AppUpdateInfo updateInfo = await InAppUpdate.checkForUpdate();
-      
+      if (!context.mounted) return;
+
       if (updateInfo.updateAvailability == UpdateAvailability.updateAvailable) {
         if (updateInfo.immediateUpdateAllowed) {
           // For critical updates, show non-dismissible dialog
@@ -212,7 +213,7 @@ class UpdateService {
         }
       }
     } catch (e) {
-      print('Error checking for critical update: $e');
+      debugPrint('Error checking for critical update: $e');
     }
   }
 
@@ -222,8 +223,8 @@ class UpdateService {
       context: context,
       barrierDismissible: false,
       builder: (BuildContext context) {
-        return WillPopScope(
-          onWillPop: () async => false, // Prevent back button
+        return PopScope(
+          canPop: false,
           child: Dialog(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             child: Container(
@@ -233,7 +234,7 @@ class UpdateService {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.15),
+                    color: Colors.black.withValues(alpha: 0.15),
                     blurRadius: 15,
                     offset: const Offset(0, 8),
                   ),
@@ -329,9 +330,9 @@ class UpdateService {
     );
   }
 
-  /// Get current app version
+  /// The user-facing version, e.g. "1.0.3" (without the Play build number).
   static Future<String> getCurrentVersion() async {
     final PackageInfo packageInfo = await PackageInfo.fromPlatform();
-    return '${packageInfo.version} (${packageInfo.buildNumber})';
+    return packageInfo.version;
   }
 }
