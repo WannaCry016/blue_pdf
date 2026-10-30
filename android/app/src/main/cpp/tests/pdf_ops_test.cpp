@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstring>
 #include <fstream>
+#include <functional>
 #include <iterator>
 #include <string>
 #include <vector>
@@ -349,6 +350,83 @@ void TestRender() {
     CHECK(!Exists(P("bad.jpg")));
 }
 
+using bluepdf::Progress;
+using bluepdf::Stage;
+
+// Records progress events and cancels on the first one matching `cancel_if`.
+struct Recorder {
+    std::vector<Progress> events;
+    std::function<bool(const Progress&)> cancel_if;
+
+    bluepdf::ProgressFn Fn() {
+        return [this](const Progress& p) {
+            events.push_back(p);
+            return !(cancel_if && cancel_if(p));
+        };
+    }
+
+    bool Monotonic() const {
+        for (size_t i = 1; i < events.size(); ++i) {
+            if (events[i].fraction < events[i - 1].fraction) return false;
+        }
+        return true;
+    }
+
+    bool Finished() const { return !events.empty() && events.back().fraction == 1.0f; }
+
+    bool Saw(Stage stage, int done = -1, int total = -1) const {
+        for (const auto& e : events) {
+            if (e.stage == stage && (done < 0 || e.done == done) && (total < 0 || e.total == total)) return true;
+        }
+        return false;
+    }
+};
+
+void TestProgress() {
+    std::puts("Progress");
+    Recorder merge;
+    CHECK_OK(bluepdf::MergePdfs({P("plain.pdf"), P("locked.pdf")}, {"", "secret"}, P("p-merged.pdf"),
+                                merge.Fn()));
+    CHECK(merge.Monotonic() && merge.Finished());
+    CHECK(merge.Saw(Stage::kProcessing, 1, 10) && merge.Saw(Stage::kProcessing, 10, 10));
+    CHECK(merge.Saw(Stage::kWriting));
+
+    Recorder images;
+    std::vector<int> skipped;
+    CHECK_OK(bluepdf::ImagesToPdf({P("red-blue.jpg"), P("not-an-image.jpg"), P("exif6.jpg")}, {},
+                                  PageMode::kA4, P("p-images.pdf"), &skipped, images.Fn()));
+    CHECK(images.Monotonic() && images.Finished());
+    CHECK(images.Saw(Stage::kProcessing, 2, 3) && images.Saw(Stage::kProcessing, 3, 3));
+
+    Recorder reorder;
+    CHECK_OK(bluepdf::ExtractPages(P("plain.pdf"), "", {4, 3, 2, 1, 0}, {}, P("p-reorder.pdf"), reorder.Fn()));
+    CHECK(reorder.Monotonic() && reorder.Finished() && reorder.Saw(Stage::kWriting));
+
+    Recorder encrypt;
+    CHECK_OK(bluepdf::EncryptPdf(P("plain.pdf"), "pw", P("p-encrypted.pdf"), encrypt.Fn()));
+    CHECK(encrypt.Finished() && !encrypt.Saw(Stage::kProcessing));
+
+    // Cancelling stops the work and leaves no output behind, whatever the stage.
+    Recorder merge_cancel;
+    merge_cancel.cancel_if = [](const Progress& p) { return p.done == 3; };
+    CHECK_CODE(bluepdf::MergePdfs({P("plain.pdf"), P("plain.pdf")}, {}, P("p-cancel1.pdf"), merge_cancel.Fn()),
+               bluepdf::codes::kCancelled);
+    CHECK(!Exists(P("p-cancel1.pdf")) && !merge_cancel.Saw(Stage::kProcessing, 4));
+
+    Recorder write_cancel;
+    write_cancel.cancel_if = [](const Progress& p) { return p.stage == Stage::kWriting; };
+    CHECK_CODE(bluepdf::ExtractPages(P("plain.pdf"), "", {0, 1}, {}, P("p-cancel2.pdf"), write_cancel.Fn()),
+               bluepdf::codes::kCancelled);
+    CHECK(!Exists(P("p-cancel2.pdf")) && !write_cancel.Finished());
+
+    Recorder image_cancel;
+    image_cancel.cancel_if = [](const Progress&) { return true; };
+    CHECK_CODE(bluepdf::ImagesToPdf({P("red-blue.jpg"), P("exif6.jpg")}, {}, PageMode::kFit, P("p-cancel3.pdf"),
+                                    &skipped, image_cancel.Fn()),
+               bluepdf::codes::kCancelled);
+    CHECK(!Exists(P("p-cancel3.pdf")) && image_cancel.events.size() == 1);
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -366,6 +444,7 @@ int main(int argc, char** argv) {
     TestMerge();
     TestEncrypt();
     TestRender();
+    TestProgress();
 
     std::printf("%d/%d checks passed\n", g_checks - g_failures, g_checks);
     return g_failures == 0 ? 0 : 1;
