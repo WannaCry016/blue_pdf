@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:blue_pdf/main.dart';
+import 'package:blue_pdf/components/job_progress.dart';
 import 'package:blue_pdf/components/split_view.dart';
 import 'package:blue_pdf/services/update_service.dart';
 import 'package:open_filex/open_filex.dart';
@@ -8,6 +10,7 @@ import '../components/dropdown.dart';
 import '../components/pdf_password_dialog.dart';
 import '../pdf/image_formats.dart';
 import '../pdf/pdf_engine.dart';
+import '../pdf/pdf_job.dart';
 import 'process_success_screen.dart';
 import 'about_page.dart';
 import 'package:flutter/material.dart';
@@ -48,58 +51,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     'Reorder PDF': reorderPdfFilesProvider,
   };
 
-  bool _busyDialogOpen = false;
-
   void _showMessage(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  void _showBusyDialog(String message) {
-    if (_busyDialogOpen) return;
-    _busyDialogOpen = true;
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) {
-        final isDarkMode = Theme.of(dialogContext).brightness == Brightness.dark;
-        return PopScope(
-          canPop: false,
-          child: Dialog(
-            backgroundColor: isDarkMode ? kDarkCard : Colors.white,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      isDarkMode ? kDarkAccent : Colors.blueAccent,
-                    ),
-                  ),
-                  const SizedBox(width: 20),
-                  Flexible(
-                    child: Text(
-                      message,
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: isDarkMode ? kDarkText : Colors.black87,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  void _hideBusyDialog() {
-    if (!_busyDialogOpen || !mounted) return;
-    _busyDialogOpen = false;
-    Navigator.of(context, rootNavigator: true).pop();
+  /// Shows [failure] unless the user cancelled, which needs no message.
+  void _showFailure(String what, PdfFailure failure) {
+    if (failure.code == PdfErrorCode.cancelled) return;
+    debugPrint('$what failed: $failure');
+    _showMessage(failure.message);
   }
 
   Future<String?> _promptPassword({required String action}) async {
@@ -130,20 +91,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return password;
   }
 
-  String _progressLabel(String tool, int count) => switch (tool) {
-        'Merge PDF' => 'Merging $count PDFs...',
-        'Image to PDF' => count == 1 ? 'Creating PDF...' : 'Creating PDF from $count images...',
-        'Encrypt PDF' => 'Protecting PDF...',
-        'Split PDF' => 'Splitting PDF...',
-        'Reorder PDF' => 'Reordering pages...',
-        _ => 'Processing PDF...',
+  String _progressTitle(String tool, int count) => switch (tool) {
+        'Merge PDF' => 'Merging $count PDFs',
+        'Image to PDF' => count == 1 ? 'Creating PDF' : 'Creating PDF from $count images',
+        'Encrypt PDF' => 'Protecting PDF',
+        'Split PDF' => 'Splitting PDF',
+        'Reorder PDF' => 'Reordering $count pages',
+        _ => 'Processing PDF',
       };
 
-  Future<String> _imagesToPdf(List<SelectedFile> files) async {
+  ProgressDescriber _describeProgress(String tool) => (progress) => switch (progress.stage) {
+        PdfStage.processing when tool == 'Merge PDF' => 'Copying page ${progress.done} of ${progress.total}',
+        PdfStage.processing when tool == 'Image to PDF' => 'Adding image ${progress.done} of ${progress.total}',
+        PdfStage.processing => 'Arranging pages',
+        PdfStage.writing when progress.fraction >= 1 => 'Done',
+        PdfStage.writing when tool == 'Encrypt PDF' => 'Encrypting',
+        PdfStage.writing => 'Saving',
+      };
+
+  Future<String> _imagesToPdf(List<SelectedFile> files, PdfJob job) async {
     final result = await PdfEngine.imagesToPdf(
       files.map((f) => f.path).toList(),
       rotations: files.map((f) => f.rotation).toList(),
       fitToImage: ref.read(pageSizeProvider) == PageSize.fit,
+      job: job,
     );
     if (result.skipped.isNotEmpty) {
       final names = result.skipped.map((i) => files[i].name).join(', ');
@@ -188,45 +159,46 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     if (!mounted) return;
 
     ref.read(isProcessingProvider.notifier).state = true;
-    _showBusyDialog(_progressLabel(tool, files.length));
-
     String? outputPath;
     try {
-      outputPath = switch (tool) {
-        'Merge PDF' => await PdfEngine.merge(
-            files.map((f) => f.path).toList(),
-            passwords: files.map((f) => f.password).toList(),
-          ),
-        'Image to PDF' => await _imagesToPdf(files),
-        'Encrypt PDF' => await PdfEngine.encrypt(files.first.path, newPassword!),
-        'Split PDF' => await PdfEngine.extractPages(
-            files.first.path,
-            splitPages!,
-            password: files.first.password,
-          ),
-        'Reorder PDF' => await PdfEngine.extractPages(
-            files.first.path,
-            [for (final f in files) f.pageIndex!],
-            password: files.first.password,
-            rotations: [for (final f in files) f.rotation],
-          ),
-        _ => throw StateError('Unknown tool: $tool'),
-      };
+      outputPath = await runWithProgress(
+        context,
+        title: _progressTitle(tool, files.length),
+        describe: _describeProgress(tool),
+        task: (job) => switch (tool) {
+          'Merge PDF' => PdfEngine.merge(
+              files.map((f) => f.path).toList(),
+              passwords: files.map((f) => f.password).toList(),
+              job: job,
+            ),
+          'Image to PDF' => _imagesToPdf(files, job),
+          'Encrypt PDF' => PdfEngine.encrypt(files.first.path, newPassword!, job: job),
+          'Split PDF' => PdfEngine.extractPages(
+              files.first.path,
+              splitPages!,
+              password: files.first.password,
+              job: job,
+            ),
+          'Reorder PDF' => PdfEngine.extractPages(
+              files.first.path,
+              [for (final f in files) f.pageIndex!],
+              password: files.first.password,
+              rotations: [for (final f in files) f.rotation],
+              job: job,
+            ),
+          _ => throw StateError('Unknown tool: $tool'),
+        },
+      );
     } on PdfFailure catch (failure) {
-      debugPrint('$tool failed: $failure');
-      _hideBusyDialog();
-      _showMessage(failure.message);
+      _showFailure(tool, failure);
     } catch (e, stack) {
       debugPrint('$tool failed: $e\n$stack');
-      _hideBusyDialog();
       _showMessage("Something went wrong. Please try again.");
     } finally {
       if (mounted) ref.read(isProcessingProvider.notifier).state = false;
     }
 
     if (outputPath == null || !mounted) return;
-    _hideBusyDialog();
-
     final source = outputPath;
     final saved = await showModalBottomSheet<SavedPdf>(
       context: context,
@@ -290,6 +262,39 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return admitted;
   }
 
+  /// Copies picked files into the cache when they have no local path and
+  /// converts images MuPDF cannot read, reporting each file as it finishes.
+  /// Cancelling stops waiting; files still in flight are left to the cache.
+  Future<List<SelectedFile>> _loadPicked(
+    List<PlatformFile> picked, {
+    required bool convertImages,
+    required PdfJob job,
+  }) async {
+    var done = 0;
+    job.report(PdfProgress.items(0, picked.length));
+    final cancelled = Completer<Never>();
+    job.onCancel(() => cancelled.completeError(const PdfFailure(PdfErrorCode.cancelled)));
+
+    final loaded = await Future.any([
+      Future.wait(picked.map((file) async {
+        final selected = await SelectedFile.fromPicked(file);
+        final ready = convertImages ? await ensureNativeImage(selected) : selected;
+        job.report(PdfProgress.items(++done, picked.length));
+        return ready;
+      })),
+      cancelled.future,
+    ]);
+
+    final files = loaded.whereType<SelectedFile>().toList();
+    final failed = loaded.length - files.length;
+    if (failed > 0) {
+      _showMessage(failed == 1
+          ? "1 image couldn't be read and was skipped."
+          : "$failed images couldn't be read and were skipped.");
+    }
+    return files;
+  }
+
   Future<void> _pickFiles() async {
     final tool = ref.read(selectedToolProvider);
     if (tool == null) return;
@@ -311,27 +316,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
     if (picked.isEmpty || !mounted) return;
 
-    _showBusyDialog(tool == 'Image to PDF' ? 'Loading images...' : 'Loading files...');
-    List<SelectedFile> files;
+    final images = tool == 'Image to PDF';
+    final List<SelectedFile> files;
     try {
-      files = await Future.wait(picked.map(SelectedFile.fromPicked));
-      if (tool == 'Image to PDF') {
-        final prepared = await Future.wait(files.map(ensureNativeImage));
-        files = prepared.whereType<SelectedFile>().toList();
-        final failed = prepared.length - files.length;
-        if (failed > 0) {
-          _showMessage(failed == 1
-              ? "1 image couldn't be read and was skipped."
-              : "$failed images couldn't be read and were skipped.");
-        }
-      }
+      files = await runWithProgress(
+        context,
+        title: images ? 'Preparing images' : 'Loading files',
+        describe: (progress) => progress.stage == PdfStage.writing
+            ? 'Done'
+            : '${progress.done} of ${progress.total} ${images ? 'images' : 'files'}',
+        task: (job) => _loadPicked(picked, convertImages: images, job: job),
+      );
+    } on PdfFailure catch (failure) {
+      _showFailure('Loading picked files', failure);
+      return;
     } catch (e) {
       debugPrint('Loading picked files failed: $e');
-      _hideBusyDialog();
       _showMessage("Couldn't load the selected files.");
       return;
     }
-    _hideBusyDialog();
+    if (!mounted) return;
 
     switch (tool) {
       case 'Image to PDF':
@@ -404,7 +408,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       }
     });
 
-    return Scaffold(
+    // Before a slow job's progress dialog appears, nothing else may be tapped.
+    return AbsorbPointer(
+      absorbing: isProcessing,
+      child: Scaffold(
       backgroundColor: bgColor,
       appBar: AppBar(
         elevation: 0,
@@ -840,15 +847,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             color: Colors.transparent,
                             child: InkWell(
                               borderRadius: BorderRadius.circular(30),
-                              onTap: _processFiles,
+                              onTap: isProcessing ? null : _processFiles,
                               child: Center(
                                 child: Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Icon(Icons.play_arrow_rounded, size: isTab ? 30 : 22, color: Colors.white),
+                                    if (isProcessing)
+                                      SizedBox.square(
+                                        dimension: isTab ? 24 : 18,
+                                        child: const CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+                                      )
+                                    else
+                                      Icon(Icons.play_arrow_rounded, size: isTab ? 30 : 22, color: Colors.white),
                                     SizedBox(width: isTab ? 14 : 8),
                                     Text(
-                                      "Process",
+                                      isProcessing ? "Processing" : "Process",
                                       style: TextStyle(
                                         fontSize: buttonFont,
                                         fontWeight: FontWeight.w600,
@@ -996,6 +1009,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         },
         ),
       ),
+    ),
     );
   }
 }
