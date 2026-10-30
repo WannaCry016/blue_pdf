@@ -5,9 +5,9 @@ import 'package:share_plus/share_plus.dart';
 import 'about_page.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:open_filex/open_filex.dart';
-import 'package:path_provider/path_provider.dart';
 import '../components/brand_title.dart';
 import '../components/save_pdf.dart' show SavedPdf;
+import '../utils/cache_cleaner.dart';
 import '../pdf/pdf_engine.dart';
 import '../utils/saved_location.dart';
 
@@ -74,30 +74,9 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
 
   @override
   void dispose() {
-    _clearAppCache();
+    // The job is done and saved, so its inputs, result and thumbnails can go.
+    clearCache(before: DateTime.now()).ignore();
     super.dispose();
-  }
-
-  void _clearAppCache() async {
-    try {
-      final cacheDir = await getTemporaryDirectory();
-
-      if (await cacheDir.exists()) {
-        final files = cacheDir.listSync();
-        for (final file in files) {
-          try {
-            if (file is File || file is Directory) {
-              await file.delete(recursive: true);
-            }
-          } catch (e) {
-            debugPrint("⚠️ Error deleting ${file.path}: $e");
-          }
-        }
-        debugPrint("🧹 Cache directory cleared: ${cacheDir.path}");
-      }
-    } catch (e) {
-      debugPrint("❌ Failed to clear cache: $e");
-    }
   }
 
 
