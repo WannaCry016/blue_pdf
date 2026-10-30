@@ -46,7 +46,8 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
     });
   }
 
-  /// The user may rename the file in the system picker, so ask the provider first.
+  /// The picker lets the user rename the file and Downloads saves clashes as
+  /// "name (1).pdf", so ask the provider for the real name first.
   Future<_FileDetails> _loadDetails() async {
     final saved = widget.saved;
     SavedDocument document = const SavedDocument();
@@ -62,7 +63,7 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
         size = await File(saved.localPath).length();
       } catch (_) {}
     }
-    final folder = savedFolder(saved.location);
+    final folder = saved.folder ?? savedFolder(saved.location);
     final parts = [
       if (size != null) formatFileSize(size),
       if (folder != null) 'Saved to $folder',

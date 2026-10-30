@@ -200,21 +200,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     if (outputPath == null || !mounted) return;
     final source = outputPath;
-    final saved = await showModalBottomSheet<SavedPdf>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => SavePdfOverlay(sourcePath: source),
-    );
-    if (saved == null) {
-      File(source).delete().ignore();
-      return;
-    }
-    if (!mounted) return;
-    Navigator.push(
+    final saved = await SavePdfOverlay.show(
       context,
-      MaterialPageRoute(builder: (_) => ProcessSuccessScreen(saved: saved)),
+      sourcePath: source,
+      next: (saved) => ProcessSuccessScreen(saved: saved),
     );
+    if (saved == null) File(source).delete().ignore();
   }
 
   /// Opens each picked PDF once: unlocks protected files (or rejects them for

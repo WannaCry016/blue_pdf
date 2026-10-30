@@ -3,6 +3,7 @@ package com.bluepdf.blue_pdf
 import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
+import android.os.Build
 import android.provider.OpenableColumns
 import android.util.Log
 import io.flutter.plugin.common.BinaryMessenger
@@ -101,6 +102,9 @@ class PdfChannel(context: Context, messenger: BinaryMessenger) : MethodChannel.M
             "renderPage" -> run(call, result, renderDispatcher) { renderPage(call) }
 
             "describeSaved" -> run(call, result) { describeSaved(Uri.parse(call.requireString("uri"))) }
+
+            // Scoped storage lets apps add files to Downloads without a permission.
+            "canSaveToDownloads" -> result.success(Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
 
             else -> result.notImplemented()
         }
