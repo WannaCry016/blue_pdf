@@ -6,6 +6,7 @@ import 'about_page.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
+import '../components/brand_title.dart';
 import '../components/save_pdf.dart' show SavedPdf;
 import '../pdf/pdf_engine.dart';
 import '../utils/saved_location.dart';
@@ -150,20 +151,8 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
             ),
           ),
         ),
-        leading: Icon(
-          Icons.picture_as_pdf,
-          color: Colors.white,
-          size: isTab ? 38 : 26,
-        ),
-        title: Text(
-          "BLUE PDF",
-          style: TextStyle(
-            fontFamily: 'sans-serif',
-            fontSize: isTab ? 28 : 20,
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
-          ),
-        ),
+        automaticallyImplyLeading: false,
+        title: isTab ? const BrandTitle(logoSize: 40, fontSize: 28) : const BrandTitle(),
         centerTitle: false,
         actions: [
           IconButton(

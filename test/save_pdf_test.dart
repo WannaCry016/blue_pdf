@@ -111,7 +111,6 @@ void main() {
     await tester.tap(find.byType(CheckboxListTile));
     await tester.pump();
     expect(find.text('Choose folder'), findsOneWidget);
-    expect(find.text("You'll choose a folder next"), findsOneWidget);
 
     await tapAndWait(tester, 'Choose folder');
     expect(saver.calls.single, startsWith('picker:'));

@@ -248,10 +248,6 @@ class _SavePdfOverlayState extends State<SavePdfOverlay> {
                     'Save to ${PdfSaver.appFolderLabel}',
                     style: TextStyle(color: textColor, fontSize: 14, fontWeight: FontWeight.w500),
                   ),
-                  subtitle: Text(
-                    _useAppFolder ? 'Untick to choose another folder' : "You'll choose a folder next",
-                    style: TextStyle(color: secondaryTextColor, fontSize: 12.5),
-                  ),
                 ),
               ),
               const SizedBox(height: 8),

@@ -5,6 +5,7 @@ import 'package:blue_pdf/components/job_progress.dart';
 import 'package:blue_pdf/components/split_view.dart';
 import 'package:blue_pdf/services/update_service.dart';
 import 'package:open_filex/open_filex.dart';
+import '../components/brand_title.dart';
 import '../components/camera.dart';
 import '../components/dropdown.dart';
 import '../components/pdf_password_dialog.dart';
@@ -417,20 +418,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
         ),
-        leading: const Icon(
-          Icons.picture_as_pdf, // Flutter built-in PDF-looking icon
-          color: Colors.white,
-          size: 26,
-        ),
-        title: const Text(
-          "BLUE PDF",
-          style: TextStyle(
-            fontFamily: 'sans-serif',
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
-          ),
-        ),
+        automaticallyImplyLeading: false,
+        title: const BrandTitle(),
         centerTitle: false,
         actions: [
           IconButton(
