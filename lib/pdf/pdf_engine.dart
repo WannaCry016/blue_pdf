@@ -158,6 +158,17 @@ class PdfEngine {
     return SavedDocument(name: result['name'] as String?, size: result['size'] as int?);
   }
 
+  /// Whether files can be added to the shared Downloads folder without a
+  /// picker or a storage permission (Android 10 and later).
+  static Future<bool> canSaveToDownloads() async {
+    try {
+      return await channel.invokeMethod<bool>('canSaveToDownloads') ?? false;
+    } on Exception {
+      // Unknown means the picker, which works everywhere.
+      return false;
+    }
+  }
+
   static Future<T> _invoke<T>(String method, Map<String, Object?> arguments, {PdfJob? job}) async {
     if (job != null) {
       job.throwIfCancelled();

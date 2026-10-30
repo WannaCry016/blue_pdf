@@ -330,9 +330,9 @@ class UpdateService {
     );
   }
 
-  /// Get current app version
+  /// The user-facing version, e.g. "1.0.3" (without the Play build number).
   static Future<String> getCurrentVersion() async {
     final PackageInfo packageInfo = await PackageInfo.fromPlatform();
-    return '${packageInfo.version} (${packageInfo.buildNumber})';
+    return packageInfo.version;
   }
 }

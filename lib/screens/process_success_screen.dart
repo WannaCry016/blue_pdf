@@ -5,8 +5,9 @@ import 'package:share_plus/share_plus.dart';
 import 'about_page.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:open_filex/open_filex.dart';
-import 'package:path_provider/path_provider.dart';
+import '../components/brand_title.dart';
 import '../components/save_pdf.dart' show SavedPdf;
+import '../utils/cache_cleaner.dart';
 import '../pdf/pdf_engine.dart';
 import '../utils/saved_location.dart';
 
@@ -46,7 +47,8 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
     });
   }
 
-  /// The user may rename the file in the system picker, so ask the provider first.
+  /// The picker lets the user rename the file and Downloads saves clashes as
+  /// "name (1).pdf", so ask the provider for the real name first.
   Future<_FileDetails> _loadDetails() async {
     final saved = widget.saved;
     SavedDocument document = const SavedDocument();
@@ -62,7 +64,7 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
         size = await File(saved.localPath).length();
       } catch (_) {}
     }
-    final folder = savedFolder(saved.location);
+    final folder = saved.folder ?? savedFolder(saved.location);
     final parts = [
       if (size != null) formatFileSize(size),
       if (folder != null) 'Saved to $folder',
@@ -72,30 +74,9 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
 
   @override
   void dispose() {
-    _clearAppCache();
+    // The job is done and saved, so its inputs, result and thumbnails can go.
+    clearCache(before: DateTime.now()).ignore();
     super.dispose();
-  }
-
-  void _clearAppCache() async {
-    try {
-      final cacheDir = await getTemporaryDirectory();
-
-      if (await cacheDir.exists()) {
-        final files = cacheDir.listSync();
-        for (final file in files) {
-          try {
-            if (file is File || file is Directory) {
-              await file.delete(recursive: true);
-            }
-          } catch (e) {
-            debugPrint("⚠️ Error deleting ${file.path}: $e");
-          }
-        }
-        debugPrint("🧹 Cache directory cleared: ${cacheDir.path}");
-      }
-    } catch (e) {
-      debugPrint("❌ Failed to clear cache: $e");
-    }
   }
 
 
@@ -149,20 +130,8 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
             ),
           ),
         ),
-        leading: Icon(
-          Icons.picture_as_pdf,
-          color: Colors.white,
-          size: isTab ? 38 : 26,
-        ),
-        title: Text(
-          "BLUE PDF",
-          style: TextStyle(
-            fontFamily: 'sans-serif',
-            fontSize: isTab ? 28 : 20,
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
-          ),
-        ),
+        automaticallyImplyLeading: false,
+        title: isTab ? const BrandTitle(logoSize: 40, fontSize: 28) : const BrandTitle(),
         centerTitle: false,
         actions: [
           IconButton(
