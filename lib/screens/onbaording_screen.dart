@@ -14,6 +14,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final PageController _controller = PageController();
   bool isLastPage = false;
 
+  Future<void> _finishOnboarding() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('seenOnboarding', true);
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const HomeScreen()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -51,14 +61,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               top: 20,
               right: 20,
               child: TextButton(
-                onPressed: () async {
-                  final prefs = await SharedPreferences.getInstance();
-                  prefs.setBool('seenOnboarding', true);
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(builder: (_) => HomeScreen()),
-                  );
-                },
+                onPressed: _finishOnboarding,
                 style: TextButton.styleFrom(
                   foregroundColor: Colors.grey[600],
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -238,14 +241,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   ],
                 ),
                 child: ElevatedButton.icon(
-                  onPressed: () async {
-                    final prefs = await SharedPreferences.getInstance();
-                    prefs.setBool('seenOnboarding', true);
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(builder: (_) => HomeScreen()),
-                    );
-                  },
+                  onPressed: _finishOnboarding,
                   icon: const Icon(Icons.rocket_launch, size: 20),
                   label: const Text('Get Started'),
                   style: ElevatedButton.styleFrom(
