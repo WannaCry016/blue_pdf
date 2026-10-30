@@ -27,7 +27,7 @@ jobs:
 
       - name: Analyze
         # use_build_context_synchronously infos are tracked for Phase 1; fail only on warnings/errors.
-        run: flutter analyze --no-fatal-infos
+        run: flutter analyze
 
       - name: Test
         run: flutter test

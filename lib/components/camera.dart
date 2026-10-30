@@ -16,6 +16,7 @@ class CameraButton extends ConsumerWidget {
   Future<void> _startCaptureFlow(BuildContext context, WidgetRef ref) async {
     bool result = false;
     while (true) {
+      if (!context.mounted) break;
       final capturedFile = await Navigator.push<File>(
         context,
         MaterialPageRoute(builder: (_) => CameraCaptureScreen(result: result)),
@@ -24,11 +25,12 @@ class CameraButton extends ConsumerWidget {
       if (capturedFile == null) break;
 
       final imageBytes = await capturedFile.readAsBytes();
+      if (!context.mounted) break;
 
-      result = (await Navigator.push<bool>(
+      result = await Navigator.push<bool>(
         context,
         MaterialPageRoute(
-          builder: (_) => ProImageEditor.memory(
+          builder: (editorContext) => ProImageEditor.memory(
             imageBytes,
             callbacks: ProImageEditorCallbacks(
               onImageEditingComplete: (Uint8List editedBytes) async {
@@ -63,12 +65,12 @@ class CameraButton extends ConsumerWidget {
                   [SelectedFile(name: fileName, path: savedFile.path)],
                 );
 
-                Navigator.pop(context, true); // ✅ Return true
+                if (editorContext.mounted) Navigator.pop(editorContext, true);
               },
             ),
           ),
         ),
-      ))!;
+      ) ?? false;
     }
   }
 

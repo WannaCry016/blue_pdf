@@ -2,6 +2,7 @@ import 'package:blue_pdf/components/privacy_policy_page.dart';
 import 'package:flutter/material.dart' hide LicensePage;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:blue_pdf/components/license.dart';
+import 'package:blue_pdf/services/update_service.dart';
 
 class AboutPage extends StatelessWidget {
   const AboutPage({super.key});
@@ -90,6 +91,14 @@ class AboutPage extends StatelessWidget {
               "Thanks for using Blue PDF — a fast and simple utility built with 💙 to help you work with your documents offline. No ads, no nonsense.",
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 13.5, height: 1.5, color: isDark ? Colors.white70 : Colors.black87),
+            ),
+            const SizedBox(height: 10),
+            FutureBuilder<String>(
+              future: UpdateService.getCurrentVersion(),
+              builder: (context, snapshot) => Text(
+                snapshot.hasData ? "Version ${snapshot.data}" : "",
+                style: TextStyle(fontSize: 12.5, color: secondaryTextColor),
+              ),
             ),
           ],
         ),

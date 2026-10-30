@@ -14,8 +14,8 @@ class UpdateService {
       // Check if update is available
       final AppUpdateInfo updateInfo = await InAppUpdate.checkForUpdate();
 
-      if (updateInfo.updateAvailability == UpdateAvailability.updateAvailable) {
-        // Show update dialog
+      if (updateInfo.updateAvailability == UpdateAvailability.updateAvailable &&
+          context.mounted) {
         _showUpdateDialog(context, updateInfo);
       }
     } catch (e) {
@@ -202,7 +202,8 @@ class UpdateService {
   static Future<void> checkForCriticalUpdate(BuildContext context) async {
     try {
       final AppUpdateInfo updateInfo = await InAppUpdate.checkForUpdate();
-      
+      if (!context.mounted) return;
+
       if (updateInfo.updateAvailability == UpdateAvailability.updateAvailable) {
         if (updateInfo.immediateUpdateAllowed) {
           // For critical updates, show non-dismissible dialog

@@ -23,6 +23,22 @@ void main() {
     test('extension is null when the name has none', () {
       expect(_file('README').extension, isNull);
     });
+
+    test('pages of one PDF have distinct ids', () {
+      const page0 = SelectedFile(name: 'Page 1', path: '/a.pdf', pageIndex: 0);
+      const page1 = SelectedFile(name: 'Page 2', path: '/a.pdf', pageIndex: 1);
+      expect(page0.id, isNot(page1.id));
+      expect(_file('a.pdf').id, '/tmp/a.pdf');
+    });
+
+    test('copyWith keeps the page index and unspecified fields', () {
+      const page = SelectedFile(name: 'Page 3', path: '/a.pdf', password: 'pw', pageIndex: 2);
+      final rotated = page.copyWith(rotation: 90);
+      expect(rotated.rotation, 90);
+      expect(rotated.pageIndex, 2);
+      expect(rotated.password, 'pw');
+      expect(rotated.name, 'Page 3');
+    });
   });
 
   group('SelectedFilesNotifier', () {
@@ -38,6 +54,25 @@ void main() {
     test('addFiles appends in order', () {
       notifier.addFiles([_file('e'), _file('f')]);
       expect(_names(notifier), ['a', 'b', 'c', 'd', 'e', 'f']);
+    });
+
+    test('addFiles skips files already in the list', () {
+      notifier.addFiles([_file('b'), _file('e'), _file('e')]);
+      expect(_names(notifier), ['a', 'b', 'c', 'd', 'e']);
+    });
+
+    test('rotateClockwise steps through quarter turns', () {
+      final angles = [for (var i = 0; i < 4; i++) (notifier..rotateClockwise(1)).state[1].rotation];
+      expect(angles, [90, 180, 270, 0]);
+      expect(notifier.state[0].rotation, 0);
+    });
+
+    test('rotation travels with the item when it moves', () {
+      notifier
+        ..rotateClockwise(0)
+        ..move(0, 3);
+      expect(notifier.state[3].name, 'a');
+      expect(notifier.state[3].rotation, 90);
     });
 
     test('removeFileAt removes only that index', () {
