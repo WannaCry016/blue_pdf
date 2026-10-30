@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:blue_pdf/pdf/pdf_engine.dart';
+import 'package:blue_pdf/pdf/pdf_job.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -8,6 +11,15 @@ void main() {
 
   late List<MethodCall> calls;
   late Object? Function(MethodCall call) respond;
+
+  // The engine listens to the progress stream once, on its first job.
+  MockStreamHandlerEventSink? progressSink;
+  setUpAll(
+    () => messenger.setMockStreamHandler(
+      PdfEngine.progressChannel,
+      MockStreamHandler.inline(onListen: (_, sink) => progressSink = sink),
+    ),
+  );
 
   setUp(() {
     calls = [];
@@ -33,7 +45,10 @@ void main() {
     });
 
     test('imagesToPdf passes rotations and page mode, and reads skipped images', () async {
-      respond = (_) => {'path': '/out.pdf', 'skipped': [1]};
+      respond = (_) => {
+        'path': '/out.pdf',
+        'skipped': [1],
+      };
 
       final result = await PdfEngine.imagesToPdf(['/a.jpg', '/b.jpg'], rotations: [90, 0], fitToImage: true);
 
@@ -65,9 +80,11 @@ void main() {
 
       await expectLater(
         PdfEngine.inspect('/locked.pdf'),
-        throwsA(isA<PdfFailure>()
-            .having((f) => f.code, 'code', PdfErrorCode.passwordRequired)
-            .having((f) => f.detail, 'detail', 'needs password')),
+        throwsA(
+          isA<PdfFailure>()
+              .having((f) => f.code, 'code', PdfErrorCode.passwordRequired)
+              .having((f) => f.detail, 'detail', 'needs password'),
+        ),
       );
     });
 
@@ -85,6 +102,58 @@ void main() {
         PdfEngine.encrypt('/a.pdf', 'pw'),
         throwsA(isA<PdfFailure>().having((f) => f.code, 'code', PdfErrorCode.unknown)),
       );
+    });
+  });
+
+  group('PdfEngine jobs', () {
+    test('progress events reach the job they belong to', () async {
+      final job = PdfJob();
+      final other = PdfJob();
+      respond = (call) async {
+        final id = (call.arguments as Map)['jobId'];
+        progressSink!.success({'jobId': other.id, 'stage': 0, 'done': 9, 'total': 9, 'fraction': 0.5});
+        progressSink!.success({'jobId': id, 'stage': 0, 'done': 2, 'total': 4, 'fraction': 0.25});
+        progressSink!.success({'jobId': id, 'stage': 1, 'done': 0, 'total': 0, 'fraction': 0.7});
+        await Future<void>.delayed(Duration.zero);
+        return '/merged.pdf';
+      };
+
+      expect(await PdfEngine.merge(['/a.pdf', '/b.pdf'], job: job), '/merged.pdf');
+
+      expect((calls.single.arguments as Map)['jobId'], job.id);
+      expect(job.progress.value, const PdfProgress(stage: PdfStage.writing, fraction: 0.7));
+      expect(other.progress.value, isNull);
+    });
+
+    test('cancelling a running job asks native code to stop', () async {
+      final job = PdfJob();
+      final stopped = Completer<void>();
+      respond = (call) async {
+        if (call.method == 'cancel') {
+          stopped.complete();
+          return null;
+        }
+        await stopped.future;
+        throw PlatformException(code: 'CANCELLED');
+      };
+
+      final result = PdfEngine.extractPages('/a.pdf', [0], job: job);
+      await Future<void>.delayed(Duration.zero);
+      job.cancel();
+
+      await expectLater(result, throwsA(isA<PdfFailure>().having((f) => f.code, 'code', PdfErrorCode.cancelled)));
+      expect(calls.map((c) => c.method), ['extractPages', 'cancel']);
+      expect((calls.last.arguments as Map)['jobId'], job.id);
+    });
+
+    test('a job cancelled before it starts never reaches native code', () async {
+      final job = PdfJob()..cancel();
+
+      await expectLater(
+        PdfEngine.encrypt('/a.pdf', 'pw', job: job),
+        throwsA(isA<PdfFailure>().having((f) => f.code, 'code', PdfErrorCode.cancelled)),
+      );
+      expect(calls, isEmpty);
     });
   });
 

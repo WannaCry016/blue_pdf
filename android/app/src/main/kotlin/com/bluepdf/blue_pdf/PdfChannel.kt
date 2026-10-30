@@ -26,6 +26,7 @@ class PdfChannel(context: Context, messenger: BinaryMessenger) : MethodChannel.M
     private val cacheDir: File = context.cacheDir
     private val contentResolver: ContentResolver = context.contentResolver
     private val channel = MethodChannel(messenger, NAME)
+    private val jobs = PdfJobs(messenger)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     // Native rendering keeps one document open between calls, so renders are serialised.
@@ -38,6 +39,7 @@ class PdfChannel(context: Context, messenger: BinaryMessenger) : MethodChannel.M
 
     fun dispose() {
         channel.setMethodCallHandler(null)
+        jobs.dispose()
         scope.cancel()
     }
 
@@ -48,25 +50,31 @@ class PdfChannel(context: Context, messenger: BinaryMessenger) : MethodChannel.M
                 mapOf("pageCount" to info[0], "encrypted" to (info[1] == 1))
             }
 
-            "imagesToPdf" -> run(call, result) {
+            "imagesToPdf" -> runJob(call, result) { progress ->
                 val out = newOutputFile("images")
                 val skipped = PdfNative.imagesToPdf(
                     call.requireStrings("paths").toTypedArray(),
                     call.ints("rotations"),
                     call.argument<Boolean>("fitToImage") ?: false,
                     out.path,
+                    progress,
                 )
                 mapOf("path" to out.path, "skipped" to skipped.toList())
             }
 
-            "merge" -> run(call, result) {
+            "merge" -> runJob(call, result) { progress ->
                 val out = newOutputFile("merged")
                 val passwords = call.argument<List<String?>>("passwords").orEmpty()
-                PdfNative.merge(call.requireStrings("paths").toTypedArray(), passwords.toTypedArray(), out.path)
+                PdfNative.merge(
+                    call.requireStrings("paths").toTypedArray(),
+                    passwords.toTypedArray(),
+                    out.path,
+                    progress,
+                )
                 out.path
             }
 
-            "extractPages" -> run(call, result) {
+            "extractPages" -> runJob(call, result) { progress ->
                 val out = newOutputFile("pages")
                 PdfNative.extractPages(
                     call.requireString("path"),
@@ -74,14 +82,20 @@ class PdfChannel(context: Context, messenger: BinaryMessenger) : MethodChannel.M
                     call.ints("pages"),
                     call.ints("rotations"),
                     out.path,
+                    progress,
                 )
                 out.path
             }
 
-            "encrypt" -> run(call, result) {
+            "encrypt" -> runJob(call, result) { progress ->
                 val out = newOutputFile("protected")
-                PdfNative.encrypt(call.requireString("path"), call.requireString("newPassword"), out.path)
+                PdfNative.encrypt(call.requireString("path"), call.requireString("newPassword"), out.path, progress)
                 out.path
+            }
+
+            "cancel" -> {
+                jobs.cancel(call.requireInt("jobId"))
+                result.success(null)
             }
 
             "renderPage" -> run(call, result, renderDispatcher) { renderPage(call) }
@@ -89,6 +103,19 @@ class PdfChannel(context: Context, messenger: BinaryMessenger) : MethodChannel.M
             "describeSaved" -> run(call, result) { describeSaved(Uri.parse(call.requireString("uri"))) }
 
             else -> result.notImplemented()
+        }
+    }
+
+    /** Like [run], reporting progress for the call's optional `jobId`. */
+    private fun runJob(call: MethodCall, result: MethodChannel.Result, block: (PdfProgressListener?) -> Any?) {
+        val jobId = call.argument<Number>("jobId")?.toInt()
+        val job = jobs.start(jobId)
+        run(call, result) {
+            try {
+                block(job?.listener)
+            } finally {
+                jobs.finish(jobId)
+            }
         }
     }
 

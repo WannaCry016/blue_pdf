@@ -96,6 +96,28 @@ void Throw(JNIEnv* env, const bluepdf::Status& status) {
     if (error) env->Throw(error);
 }
 
+// Forwards progress to PdfProgressListener.onProgress(stage, done, total, fraction),
+// whose return value says whether to keep going. Valid for the current JNI call only.
+bluepdf::ProgressFn ToProgress(JNIEnv* env, jobject listener) {
+    if (!listener) return {};
+    jclass cls = env->GetObjectClass(listener);
+    jmethodID method = env->GetMethodID(cls, "onProgress", "(IIIF)Z");
+    env->DeleteLocalRef(cls);
+    if (!method) {
+        env->ExceptionClear();
+        return {};
+    }
+    return [env, listener, method](const bluepdf::Progress& p) {
+        const jboolean keep_going = env->CallBooleanMethod(
+            listener, method, static_cast<jint>(p.stage), p.done, p.total, p.fraction);
+        if (env->ExceptionCheck()) {
+            env->ExceptionClear();
+            return true;
+        }
+        return keep_going == JNI_TRUE;
+    };
+}
+
 }  // namespace
 
 #define PDF_NATIVE(name) Java_com_bluepdf_blue_1pdf_PdfNative_##name
@@ -113,11 +135,12 @@ PDF_NATIVE(inspect)(JNIEnv* env, jobject, jstring path, jstring password) {
 
 extern "C" JNIEXPORT jintArray JNICALL
 PDF_NATIVE(imagesToPdf)(JNIEnv* env, jobject, jobjectArray images, jintArray rotations,
-                        jboolean fitToImage, jstring outPath) {
+                        jboolean fitToImage, jstring outPath, jobject progress) {
     std::vector<int> skipped;
     const auto status = bluepdf::ImagesToPdf(
         ToStrings(env, images), ToInts(env, rotations),
-        fitToImage ? bluepdf::PageMode::kFit : bluepdf::PageMode::kA4, ToUtf8(env, outPath), &skipped);
+        fitToImage ? bluepdf::PageMode::kFit : bluepdf::PageMode::kA4, ToUtf8(env, outPath), &skipped,
+        ToProgress(env, progress));
     if (!status.ok()) {
         Throw(env, status);
         return nullptr;
@@ -126,25 +149,27 @@ PDF_NATIVE(imagesToPdf)(JNIEnv* env, jobject, jobjectArray images, jintArray rot
 }
 
 extern "C" JNIEXPORT void JNICALL
-PDF_NATIVE(merge)(JNIEnv* env, jobject, jobjectArray paths, jobjectArray passwords, jstring outPath) {
-    const auto status =
-        bluepdf::MergePdfs(ToStrings(env, paths), ToStrings(env, passwords), ToUtf8(env, outPath));
+PDF_NATIVE(merge)(JNIEnv* env, jobject, jobjectArray paths, jobjectArray passwords, jstring outPath,
+                  jobject progress) {
+    const auto status = bluepdf::MergePdfs(ToStrings(env, paths), ToStrings(env, passwords),
+                                           ToUtf8(env, outPath), ToProgress(env, progress));
     if (!status.ok()) Throw(env, status);
 }
 
 extern "C" JNIEXPORT void JNICALL
 PDF_NATIVE(extractPages)(JNIEnv* env, jobject, jstring path, jstring password, jintArray pages,
-                         jintArray rotations, jstring outPath) {
+                         jintArray rotations, jstring outPath, jobject progress) {
     const auto status = bluepdf::ExtractPages(ToUtf8(env, path), ToUtf8(env, password),
                                               ToInts(env, pages), ToInts(env, rotations),
-                                              ToUtf8(env, outPath));
+                                              ToUtf8(env, outPath), ToProgress(env, progress));
     if (!status.ok()) Throw(env, status);
 }
 
 extern "C" JNIEXPORT void JNICALL
-PDF_NATIVE(encrypt)(JNIEnv* env, jobject, jstring path, jstring newPassword, jstring outPath) {
-    const auto status =
-        bluepdf::EncryptPdf(ToUtf8(env, path), ToUtf8(env, newPassword), ToUtf8(env, outPath));
+PDF_NATIVE(encrypt)(JNIEnv* env, jobject, jstring path, jstring newPassword, jstring outPath,
+                    jobject progress) {
+    const auto status = bluepdf::EncryptPdf(ToUtf8(env, path), ToUtf8(env, newPassword),
+                                            ToUtf8(env, outPath), ToProgress(env, progress));
     if (!status.ok()) Throw(env, status);
 }
 

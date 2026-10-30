@@ -3,6 +3,8 @@
 #include <sys/stat.h>
 
 #include <algorithm>
+#include <cerrno>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <mutex>
@@ -54,6 +56,7 @@ Status CaughtError(fz_context* ctx, const char* fallback_code) {
     int code = FZ_ERROR_NONE;
     const char* raw = fz_convert_error(ctx, &code);
     std::string message = raw ? raw : "Unknown error";
+    if (code == FZ_ERROR_ABORT) return Status::Error(codes::kCancelled, "Cancelled");
     if (code == FZ_ERROR_ARGUMENT) return Status::Error(codes::kInvalidArgument, message);
     if (code == FZ_ERROR_SYSTEM && message.find("malloc") != std::string::npos) {
         return Status::Error(codes::kOutOfMemory, message);
@@ -103,13 +106,127 @@ pdf_write_options OutputOptions() {
     return opts;
 }
 
+Status Cancelled() { return Status::Error(codes::kCancelled, "Cancelled"); }
+
+void ThrowIfCancelled(fz_context* ctx, bool keep_going) {
+    if (!keep_going) fz_throw(ctx, FZ_ERROR_ABORT, "Cancelled");
+}
+
+int64_t FileSize(const std::string& path) {
+    struct stat st {};
+    return stat(path.c_str(), &st) == 0 ? static_cast<int64_t>(st.st_size) : 0;
+}
+
+// Turns item counts and bytes written into one overall fraction: processing
+// covers [0, processing_share) and writing the rest. Calls are thinned out to
+// one per item and per 1% so the listener can afford to cross JNI each time.
+class Reporter {
+public:
+    Reporter(const ProgressFn& fn, float processing_share) : fn_(fn), share_(processing_share) {}
+
+    bool Processing(int done, int total) {
+        const float part = total > 0 ? static_cast<float>(done) / static_cast<float>(total) : 0.0f;
+        return Send({Stage::kProcessing, done, total, share_ * part});
+    }
+
+    // The output size is only estimated, so writing stops short of 100%
+    // until Finish().
+    bool Writing(int64_t written, int64_t expected) {
+        const double part = expected > 0 ? std::min(0.99, static_cast<double>(written) / expected) : 0.0;
+        return Send({Stage::kWriting, 0, 0, share_ + (1.0f - share_) * static_cast<float>(part)});
+    }
+
+    void Finish() { Send({Stage::kWriting, 0, 0, 1.0f}); }
+
+private:
+    bool Send(Progress p) {
+        if (cancelled_) return false;
+        if (!fn_) return true;
+        p.fraction = std::max(p.fraction, last_.fraction);
+        const bool changed = !sent_ || p.stage != last_.stage || p.done != last_.done ||
+                             p.fraction - last_.fraction >= 0.01f ||
+                             (p.fraction >= 1.0f && last_.fraction < 1.0f);
+        if (!changed) return true;
+        sent_ = true;
+        last_ = p;
+        if (!fn_(p)) cancelled_ = true;
+        return !cancelled_;
+    }
+
+    const ProgressFn& fn_;
+    const float share_;
+    Progress last_;
+    bool sent_ = false;
+    bool cancelled_ = false;
+};
+
+// File output that reports every buffer it writes, so saving shows progress
+// and can be cancelled part-way. MuPDF has no progress hook for saving.
+struct FileSink {
+    FILE* file = nullptr;
+    int64_t written = 0;
+    int64_t expected = 0;
+    Reporter* reporter = nullptr;
+};
+
+void SinkWrite(fz_context* ctx, void* state, const void* data, size_t n) {
+    auto* sink = static_cast<FileSink*>(state);
+    if (n > 0 && std::fwrite(data, 1, n, sink->file) != n) {
+        fz_throw(ctx, FZ_ERROR_SYSTEM, "Cannot write output: %s", std::strerror(errno));
+    }
+    sink->written += static_cast<int64_t>(n);
+    ThrowIfCancelled(ctx, sink->reporter->Writing(sink->written, sink->expected));
+}
+
+int64_t SinkTell(fz_context*, void* state) { return static_cast<FileSink*>(state)->written; }
+
+void SinkClose(fz_context* ctx, void* state) {
+    auto* sink = static_cast<FileSink*>(state);
+    FILE* file = sink->file;
+    sink->file = nullptr;
+    if (file && std::fclose(file) != 0) {
+        fz_throw(ctx, FZ_ERROR_SYSTEM, "Cannot close output: %s", std::strerror(errno));
+    }
+}
+
+void SinkDrop(fz_context*, void* state) {
+    auto* sink = static_cast<FileSink*>(state);
+    if (sink->file) std::fclose(sink->file);
+    sink->file = nullptr;
+}
+
+// The returned output owns the open file; `sink` must outlive it.
+fz_output* NewFileOutput(fz_context* ctx, const std::string& path, FileSink* sink) {
+    sink->file = std::fopen(path.c_str(), "wb");
+    if (!sink->file) fz_throw(ctx, FZ_ERROR_SYSTEM, "Cannot create output: %s", std::strerror(errno));
+    fz_output* out = nullptr;
+    fz_try(ctx) out = fz_new_output(ctx, 64 << 10, sink, SinkWrite, SinkClose, SinkDrop);
+    fz_catch(ctx) {
+        SinkDrop(ctx, sink);
+        fz_rethrow(ctx);
+    }
+    out->tell = SinkTell;
+    return out;
+}
+
 Status SaveDocument(fz_context* ctx, pdf_document* doc, const std::string& out_path,
-                    const pdf_write_options& opts) {
-    fz_try(ctx) pdf_save_document(ctx, doc, out_path.c_str(), &opts);
+                    const pdf_write_options& opts, Reporter* reporter, int64_t expected_bytes) {
+    FileSink sink;
+    sink.expected = expected_bytes;
+    sink.reporter = reporter;
+    fz_output* out = nullptr;
+    fz_var(out);
+    fz_try(ctx) {
+        out = NewFileOutput(ctx, out_path, &sink);
+        pdf_write_document(ctx, doc, out, &opts);
+        fz_close_output(ctx, out);
+    }
+    fz_always(ctx) fz_drop_output(ctx, out);
     fz_catch(ctx) {
         std::remove(out_path.c_str());
         return CaughtError(ctx, codes::kWriteFailed);
     }
+    reporter->Finish();
     return Status::Ok();
 }
 
@@ -191,20 +308,34 @@ Status InspectPdf(const std::string& path, const std::string& password, PdfInfo*
 }
 
 Status ImagesToPdf(const std::vector<std::string>& images, const std::vector<int>& rotations,
-                   PageMode mode, const std::string& out_path, std::vector<int>* skipped) {
+                   PageMode mode, const std::string& out_path, std::vector<int>* skipped,
+                   const ProgressFn& progress) {
     if (images.empty()) return Status::Error(codes::kInvalidArgument, "No images given");
 
     Context context;
     fz_context* ctx = context.get();
     if (!ctx) return NoContext();
 
-    fz_document_writer* writer = nullptr;
-    fz_try(ctx) writer = fz_new_document_writer(ctx, out_path.c_str(), "pdf", "compress,objstms");
-    fz_catch(ctx) return CaughtError(ctx, codes::kWriteFailed);
+    // Reading and placing images is most of the work; the writer only copies
+    // the (already compressed) image data out when it is closed.
+    Reporter reporter(progress, 0.7f);
+    FileSink sink;
+    sink.reporter = &reporter;
+    for (const auto& image : images) sink.expected += FileSize(image);
 
+    fz_document_writer* writer = nullptr;
+    fz_try(ctx) writer = fz_new_pdf_writer_with_output(ctx, NewFileOutput(ctx, out_path, &sink),
+                                                       "compress,objstms");
+    fz_catch(ctx) {
+        std::remove(out_path.c_str());
+        return CaughtError(ctx, codes::kWriteFailed);
+    }
+
+    const int total = static_cast<int>(images.size());
     int written = 0;
+    bool cancelled = false;
     fz_var(written);
-    for (size_t i = 0; i < images.size(); ++i) {
+    for (size_t i = 0; i < images.size() && !cancelled; ++i) {
         const int rotation = NormalizeRotation(i < rotations.size() ? rotations[i] : 0);
         fz_image* image = nullptr;
         int in_page = 0;
@@ -240,13 +371,14 @@ Status ImagesToPdf(const std::vector<std::string>& images, const std::vector<int
             }
             if (skipped) skipped->push_back(static_cast<int>(i));
         }
+        cancelled = !reporter.Processing(static_cast<int>(i) + 1, total);
     }
 
-    if (written == 0) {
+    if (cancelled || written == 0) {
         fz_try(ctx) fz_drop_document_writer(ctx, writer);
         fz_catch(ctx) fz_report_error(ctx);
         std::remove(out_path.c_str());
-        return Status::Error(codes::kNoPages, "None of the images could be read");
+        return cancelled ? Cancelled() : Status::Error(codes::kNoPages, "None of the images could be read");
     }
 
     fz_try(ctx) fz_close_document_writer(ctx, writer);
@@ -255,6 +387,7 @@ Status ImagesToPdf(const std::vector<std::string>& images, const std::vector<int
         std::remove(out_path.c_str());
         return CaughtError(ctx, codes::kWriteFailed);
     }
+    reporter.Finish();
     return Status::Ok();
 }
 
@@ -358,26 +491,40 @@ void CopyAnnotations(fz_context* ctx, pdf_document* src, pdf_document* dst, pdf_
 }  // namespace
 
 Status MergePdfs(const std::vector<std::string>& paths, const std::vector<std::string>& passwords,
-                 const std::string& out_path) {
+                 const std::string& out_path, const ProgressFn& progress) {
     if (paths.empty()) return Status::Error(codes::kInvalidArgument, "No PDFs given");
 
     Context context;
     fz_context* ctx = context.get();
     if (!ctx) return NoContext();
 
-    pdf_document* merged = nullptr;
-    fz_try(ctx) merged = pdf_create_document(ctx);
-    fz_catch(ctx) return CaughtError(ctx, codes::kWriteFailed);
-
+    // Every input is opened up front: wrong passwords fail before any work,
+    // and the total page count makes progress read "page n of all pages".
+    std::vector<pdf_document*> sources(paths.size(), nullptr);
     Status st;
     for (size_t i = 0; i < paths.size() && st.ok(); ++i) {
-        pdf_document* src = nullptr;
-        st = OpenPdf(ctx, paths[i], i < passwords.size() ? passwords[i] : std::string(), &src);
-        if (!st.ok()) {
-            st.message = "File " + std::to_string(i + 1) + ": " + st.message;
-            break;
-        }
+        st = OpenPdf(ctx, paths[i], i < passwords.size() ? passwords[i] : std::string(), &sources[i]);
+        if (!st.ok()) st.message = "File " + std::to_string(i + 1) + ": " + st.message;
+    }
 
+    pdf_document* merged = nullptr;
+    int total = 0;
+    fz_var(merged);
+    fz_var(total);
+    if (st.ok()) {
+        fz_try(ctx) {
+            for (pdf_document* src : sources) total += pdf_count_pages(ctx, src);
+            merged = pdf_create_document(ctx);
+        }
+        fz_catch(ctx) st = CaughtError(ctx, codes::kProcessFailed);
+    }
+
+    // Copying pages and writing them out take roughly the same time.
+    Reporter reporter(progress, 0.5f);
+    int done = 0;
+    fz_var(done);
+    for (size_t i = 0; i < sources.size() && st.ok(); ++i) {
+        pdf_document* src = sources[i];
         GraftedPages pages;
         pdf_graft_map* map = nullptr;
         fz_var(map);
@@ -390,6 +537,7 @@ Status MergePdfs(const std::vector<std::string>& paths, const std::vector<std::s
                 pdf_graft_mapped_page(ctx, map, -1, src, p);
                 pages.index_by_src_num[pdf_to_num(ctx, pdf_lookup_page_obj(ctx, src, p))] = p;
                 pages.dst.push_back(pdf_lookup_page_obj(ctx, merged, base + p));
+                ThrowIfCancelled(ctx, reporter.Processing(++done, total));
             }
             // After all pages are in place, so links can point forwards.
             for (int p = 0; p < count; ++p) {
@@ -399,13 +547,17 @@ Status MergePdfs(const std::vector<std::string>& paths, const std::vector<std::s
         fz_always(ctx) {
             pdf_drop_graft_map(ctx, map);
             pdf_drop_document(ctx, src);
+            sources[i] = nullptr;
         }
         fz_catch(ctx) st = CaughtError(ctx, codes::kProcessFailed);
     }
+    for (pdf_document* src : sources) pdf_drop_document(ctx, src);
 
     if (st.ok()) {
+        int64_t expected = 0;
+        for (const auto& path : paths) expected += FileSize(path);
         pdf_write_options opts = OutputOptions();
-        st = SaveDocument(ctx, merged, out_path, opts);
+        st = SaveDocument(ctx, merged, out_path, opts, &reporter, expected);
     }
     pdf_drop_document(ctx, merged);
     return st;
@@ -413,7 +565,7 @@ Status MergePdfs(const std::vector<std::string>& paths, const std::vector<std::s
 
 Status ExtractPages(const std::string& path, const std::string& password,
                     const std::vector<int>& pages, const std::vector<int>& rotations,
-                    const std::string& out_path) {
+                    const std::string& out_path, const ProgressFn& progress) {
     if (pages.empty()) return Status::Error(codes::kInvalidArgument, "No pages selected");
     if (!rotations.empty() && rotations.size() != pages.size()) {
         return Status::Error(codes::kInvalidArgument, "Rotations do not match pages");
@@ -427,6 +579,11 @@ Status ExtractPages(const std::string& path, const std::string& password,
     Status st = OpenPdf(ctx, path, password, &doc);
     if (!st.ok()) return st;
 
+    // Rearranging only edits the page tree; writing the file is the slow part.
+    Reporter reporter(progress, 0.1f);
+    const int selected = static_cast<int>(pages.size());
+    int64_t expected = FileSize(path);
+    fz_var(expected);
     fz_try(ctx) {
         const int count = pdf_count_pages(ctx, doc);
         for (size_t i = 0; i < pages.size(); ++i) {
@@ -434,9 +591,10 @@ Status ExtractPages(const std::string& path, const std::string& password,
                 fz_throw(ctx, FZ_ERROR_ARGUMENT, "Page %d is out of range (1-%d)", pages[i] + 1, count);
             }
         }
+        expected = expected * std::min(selected, count) / count;
+        ThrowIfCancelled(ctx, reporter.Processing(0, selected));
         // Structure trees are dropped: they can carry text from removed pages.
-        pdf_rearrange_pages(ctx, doc, static_cast<int>(pages.size()), pages.data(),
-                            PDF_CLEAN_STRUCTURE_DROP);
+        pdf_rearrange_pages(ctx, doc, selected, pages.data(), PDF_CLEAN_STRUCTURE_DROP);
         for (size_t i = 0; i < rotations.size(); ++i) {
             const int rotation = NormalizeRotation(rotations[i]);
             if (rotation == 0) continue;
@@ -444,19 +602,20 @@ Status ExtractPages(const std::string& path, const std::string& password,
             const int current = pdf_to_int(ctx, pdf_dict_get_inheritable(ctx, page, PDF_NAME(Rotate)));
             pdf_dict_put_int(ctx, page, PDF_NAME(Rotate), NormalizeRotation(current + rotation));
         }
+        ThrowIfCancelled(ctx, reporter.Processing(selected, selected));
     }
     fz_catch(ctx) st = CaughtError(ctx, codes::kProcessFailed);
 
     if (st.ok()) {
         pdf_write_options opts = OutputOptions();
-        st = SaveDocument(ctx, doc, out_path, opts);
+        st = SaveDocument(ctx, doc, out_path, opts, &reporter, expected);
     }
     pdf_drop_document(ctx, doc);
     return st;
 }
 
 Status EncryptPdf(const std::string& path, const std::string& new_password,
-                  const std::string& out_path) {
+                  const std::string& out_path, const ProgressFn& progress) {
     if (new_password.empty()) return Status::Error(codes::kInvalidArgument, "Password is empty");
 
     Context context;
@@ -482,7 +641,9 @@ Status EncryptPdf(const std::string& path, const std::string& new_password,
     std::strncpy(opts.upwd_utf8, new_password.c_str(), sizeof(opts.upwd_utf8) - 1);
     std::strncpy(opts.opwd_utf8, new_password.c_str(), sizeof(opts.opwd_utf8) - 1);
 
-    st = SaveDocument(ctx, doc, out_path, opts);
+    // Encryption happens as each object is written.
+    Reporter reporter(progress, 0.0f);
+    st = SaveDocument(ctx, doc, out_path, opts, &reporter, FileSize(path));
     pdf_drop_document(ctx, doc);
     return st;
 }

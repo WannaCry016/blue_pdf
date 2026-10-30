@@ -2,6 +2,7 @@
 // the on-device test binary in cpp/tests.
 #pragma once
 
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -18,6 +19,7 @@ inline constexpr const char* kWriteFailed = "WRITE_FAILED";
 inline constexpr const char* kNoPages = "NO_PAGES";
 inline constexpr const char* kInvalidArgument = "INVALID_ARGUMENT";
 inline constexpr const char* kOutOfMemory = "OUT_OF_MEMORY";
+inline constexpr const char* kCancelled = "CANCELLED";
 }  // namespace codes
 
 struct Status {
@@ -39,6 +41,24 @@ struct PdfInfo {
     bool encrypted = false;  // Needs a user password to open.
 };
 
+// Values are shared with the Kotlin and Dart layers.
+enum class Stage {
+    kProcessing = 0,  // Working through pages or images: `done` of `total`.
+    kWriting = 1,     // Writing the output file; `done`/`total` are 0.
+};
+
+struct Progress {
+    Stage stage = Stage::kProcessing;
+    int done = 0;
+    int total = 0;
+    float fraction = 0;  // Of the whole operation, 0 to 1, never decreasing.
+};
+
+// Called on the operation's thread, at most once per item and per 1% of the
+// output written. Return false to cancel: the operation then fails with
+// codes::kCancelled and leaves no output file behind.
+using ProgressFn = std::function<bool(const Progress&)>;
+
 // Opens a PDF, authenticating with `password` when it is protected.
 Status InspectPdf(const std::string& path, const std::string& password, PdfInfo* info);
 
@@ -46,22 +66,23 @@ Status InspectPdf(const std::string& path, const std::string& password, PdfInfo*
 // clockwise by `rotations[i]` degrees (multiples of 90; may be empty).
 // Indices of unreadable images are reported in `skipped`.
 Status ImagesToPdf(const std::vector<std::string>& images, const std::vector<int>& rotations,
-                   PageMode mode, const std::string& out_path, std::vector<int>* skipped);
+                   PageMode mode, const std::string& out_path, std::vector<int>* skipped,
+                   const ProgressFn& progress = {});
 
 // Copies every page of each input (lossless: links, bookmarks and forms survive).
 Status MergePdfs(const std::vector<std::string>& paths, const std::vector<std::string>& passwords,
-                 const std::string& out_path);
+                 const std::string& out_path, const ProgressFn& progress = {});
 
 // Writes the 0-based `pages` of a document in the given order. `rotations`
 // (clockwise degrees, same length as `pages` or empty) are added to each page.
 // The source's encryption, if any, is kept.
 Status ExtractPages(const std::string& path, const std::string& password,
                     const std::vector<int>& pages, const std::vector<int>& rotations,
-                    const std::string& out_path);
+                    const std::string& out_path, const ProgressFn& progress = {});
 
 // Protects an unencrypted PDF with AES-256.
 Status EncryptPdf(const std::string& path, const std::string& new_password,
-                  const std::string& out_path);
+                  const std::string& out_path, const ProgressFn& progress = {});
 
 // Renders a 0-based page to a JPEG that is `target_width` pixels wide.
 // The most recently rendered document stays open to make thumbnail strips fast.

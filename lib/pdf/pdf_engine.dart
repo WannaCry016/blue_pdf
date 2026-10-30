@@ -1,4 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart';
+
+import 'pdf_job.dart';
 
 /// Failure codes raised by the native engine (see android/app/src/main/cpp/pdf_ops.h).
 enum PdfErrorCode {
@@ -11,6 +15,7 @@ enum PdfErrorCode {
   noPages('NO_PAGES'),
   invalidArgument('INVALID_ARGUMENT'),
   outOfMemory('OUT_OF_MEMORY'),
+  cancelled('CANCELLED'),
   unknown('UNKNOWN');
 
   const PdfErrorCode(this.wire);
@@ -39,6 +44,7 @@ class PdfFailure implements Exception {
         PdfErrorCode.noPages => 'There was nothing to add: no readable pages or images.',
         PdfErrorCode.invalidArgument => 'That selection is not valid. Please check it and try again.',
         PdfErrorCode.outOfMemory => 'This file is too large to process on this device.',
+        PdfErrorCode.cancelled => 'Cancelled.',
         PdfErrorCode.unknown => 'Something went wrong. Please try again.',
       };
 
@@ -72,10 +78,17 @@ class SavedDocument {
 }
 
 /// Typed access to the MuPDF engine. Page numbers are 0-based throughout.
+///
+/// Long operations accept a [PdfJob] that receives progress and can cancel
+/// them; a cancelled operation fails with [PdfErrorCode.cancelled].
 class PdfEngine {
   PdfEngine._();
 
   static const channel = MethodChannel('com.bluepdf.channel/pdf');
+  static const progressChannel = EventChannel('com.bluepdf.channel/progress');
+
+  static final Map<int, PdfJob> _runningJobs = {};
+  static StreamSubscription<Object?>? _progressEvents;
 
   static Future<PdfInfo> inspect(String path, {String? password}) async {
     final result = await _invoke<Map<Object?, Object?>>('inspect', {
@@ -93,20 +106,25 @@ class PdfEngine {
     List<String> paths, {
     List<int> rotations = const [],
     bool fitToImage = false,
+    PdfJob? job,
   }) async {
-    final result = await _invoke<Map<Object?, Object?>>('imagesToPdf', {
-      'paths': paths,
-      'rotations': rotations,
-      'fitToImage': fitToImage,
-    });
+    final result = await _invoke<Map<Object?, Object?>>(
+      'imagesToPdf',
+      {'paths': paths, 'rotations': rotations, 'fitToImage': fitToImage},
+      job: job,
+    );
     return ImagesToPdfResult(
       path: result['path']! as String,
       skipped: (result['skipped']! as List<Object?>).cast<int>(),
     );
   }
 
-  static Future<String> merge(List<String> paths, {List<String?> passwords = const []}) =>
-      _invoke<String>('merge', {'paths': paths, 'passwords': passwords});
+  static Future<String> merge(
+    List<String> paths, {
+    List<String?> passwords = const [],
+    PdfJob? job,
+  }) =>
+      _invoke<String>('merge', {'paths': paths, 'passwords': passwords}, job: job);
 
   /// Writes [pages] of [path] in the given order; [rotations] are added per page.
   static Future<String> extractPages(
@@ -114,16 +132,16 @@ class PdfEngine {
     List<int> pages, {
     String? password,
     List<int> rotations = const [],
+    PdfJob? job,
   }) =>
-      _invoke<String>('extractPages', {
-        'path': path,
-        'password': password,
-        'pages': pages,
-        'rotations': rotations,
-      });
+      _invoke<String>(
+        'extractPages',
+        {'path': path, 'password': password, 'pages': pages, 'rotations': rotations},
+        job: job,
+      );
 
-  static Future<String> encrypt(String path, String newPassword) =>
-      _invoke<String>('encrypt', {'path': path, 'newPassword': newPassword});
+  static Future<String> encrypt(String path, String newPassword, {PdfJob? job}) =>
+      _invoke<String>('encrypt', {'path': path, 'newPassword': newPassword}, job: job);
 
   /// Returns a cached JPEG of [page] rendered [width] pixels wide.
   static Future<String> renderPage(String path, int page, {required int width, String? password}) =>
@@ -140,13 +158,34 @@ class PdfEngine {
     return SavedDocument(name: result['name'] as String?, size: result['size'] as int?);
   }
 
-  static Future<T> _invoke<T>(String method, Map<String, Object?> arguments) async {
+  static Future<T> _invoke<T>(String method, Map<String, Object?> arguments, {PdfJob? job}) async {
+    if (job != null) {
+      job.throwIfCancelled();
+      _progressEvents ??= progressChannel.receiveBroadcastStream().listen(_onProgress, onError: (Object _) {});
+      _runningJobs[job.id] = job;
+      arguments = {...arguments, 'jobId': job.id};
+      job.onCancel(() => channel.invokeMethod<void>('cancel', {'jobId': job.id}).ignore());
+    }
     try {
       final result = await channel.invokeMethod<T>(method, arguments);
       if (result == null) throw PdfFailure(PdfErrorCode.unknown, '$method returned null');
       return result;
     } on PlatformException catch (e) {
       throw PdfFailure(PdfErrorCode.fromWire(e.code), e.message);
+    } finally {
+      if (job != null) _runningJobs.remove(job.id);
     }
+  }
+
+  static void _onProgress(Object? event) {
+    if (event is! Map) return;
+    final job = _runningJobs[event['jobId']];
+    if (job == null) return;
+    job.report(PdfProgress(
+      stage: PdfStage.values[event['stage']! as int],
+      done: event['done']! as int,
+      total: event['total']! as int,
+      fraction: (event['fraction']! as num).toDouble(),
+    ));
   }
 }
