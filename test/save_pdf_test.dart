@@ -4,6 +4,7 @@ import 'package:blue_pdf/components/save_pdf.dart';
 import 'package:blue_pdf/pdf/pdf_engine.dart';
 import 'package:blue_pdf/utils/pdf_saver.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -119,6 +120,21 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getBool('save_to_app_folder'), isFalse);
     expect(prefs.getString('last_save_location'), 'content://picked/doc');
+  });
+
+  testWidgets('"Choose folder" stays on one line on a small phone, even with larger text', (tester) async {
+    tester.view.physicalSize = const Size(1080, 1920);
+    tester.view.devicePixelRatio = 3;
+    tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+    addTearDown(tester.view.reset);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    SharedPreferences.setMockInitialValues({'save_to_app_folder': false});
+    await openSheet(tester);
+
+    final label = tester.renderObject<RenderParagraph>(find.text('Choose folder'));
+    expect(label.didExceedMaxLines, isFalse, reason: 'the label must not be cut off');
+    expect(label.size.height, closeTo(label.getMinIntrinsicHeight(double.infinity), 0.01), reason: 'one line');
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('backing out of the picker keeps the sheet open', (tester) async {

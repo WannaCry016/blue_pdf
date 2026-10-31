@@ -253,17 +253,18 @@ class _SavePdfOverlayState extends State<SavePdfOverlay> {
               const SizedBox(height: 8),
             ] else
               const SizedBox(height: 24),
+            // Cancel takes only what it needs, so the main action keeps its label on one line.
             Row(
               children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: _saving ? null : () => Navigator.pop(context),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: accent,
-                      side: BorderSide(color: accent),
-                    ),
-                    child: Text('Cancel', style: TextStyle(color: accent)),
+                OutlinedButton(
+                  onPressed: _saving ? null : () => Navigator.pop(context),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: accent,
+                    side: BorderSide(color: accent),
+                    minimumSize: const Size(96, 44),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
+                  child: Text('Cancel', style: TextStyle(color: accent)),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -291,11 +292,20 @@ class _SavePdfOverlayState extends State<SavePdfOverlay> {
                               child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                             )
                           : Icon(optedOut ? Icons.folder_open : Icons.save, color: Colors.white),
-                      label: Text(optedOut ? 'Choose folder' : 'Save', style: const TextStyle(color: Colors.white)),
+                      label: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          optedOut ? 'Choose folder' : 'Save',
+                          style: const TextStyle(color: Colors.white),
+                          maxLines: 1,
+                          softWrap: false,
+                        ),
+                      ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.transparent,
                         disabledBackgroundColor: Colors.transparent,
                         shadowColor: Colors.transparent,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
                         minimumSize: const Size.fromHeight(44),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         elevation: 0,
