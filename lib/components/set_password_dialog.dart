@@ -1,21 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-/// Asks for a new password for [fileName], entered twice so a typo can't lock
-/// the user out. Returns the password, or null when cancelled.
-Future<String?> showSetPasswordDialog(BuildContext context, {required String fileName}) {
+/// Asks for a new password, entered twice so a typo can't lock the user out.
+/// Returns the password, or null when cancelled.
+Future<String?> showSetPasswordDialog(BuildContext context) {
   return showDialog<String>(
     context: context,
     // A stray tap outside shouldn't throw away what was typed.
     barrierDismissible: false,
-    builder: (_) => SetPasswordDialog(fileName: fileName),
+    builder: (_) => const SetPasswordDialog(),
   );
 }
 
 class SetPasswordDialog extends StatefulWidget {
-  const SetPasswordDialog({super.key, required this.fileName});
-
-  final String fileName;
+  const SetPasswordDialog({super.key});
 
   @override
   State<SetPasswordDialog> createState() => _SetPasswordDialogState();
@@ -70,22 +68,23 @@ class _SetPasswordDialogState extends State<SetPasswordDialog> {
       onPressed: () => setState(() => _obscured = !_obscured),
     );
 
+    // Kept to a title and two fields so both stay visible above the keyboard.
     return AlertDialog(
-      icon: const Icon(Icons.lock_outline_rounded),
-      title: const Text('Protect PDF'),
+      title: const Row(
+        children: [
+          Icon(Icons.lock_outline_rounded),
+          SizedBox(width: 10),
+          // Shrinks rather than overflows with large system font sizes.
+          Flexible(child: Text('Protect PDF', overflow: TextOverflow.ellipsis)),
+        ],
+      ),
       content: SingleChildScrollView(
         child: AutofillGroup(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                'Anyone opening "${widget.fileName}" will need this password. '
-                "It can't be recovered if you forget it.",
-                maxLines: 4,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 4),
               TextField(
                 controller: _password,
                 autofocus: true,

@@ -11,7 +11,7 @@ void main() {
         home: Builder(
           builder: (context) => Scaffold(
             body: TextButton(
-              onPressed: () async => result = await showSetPasswordDialog(context, fileName: 'invoice.pdf'),
+              onPressed: () async => result = await showSetPasswordDialog(context),
               child: const Text('open'),
             ),
           ),
@@ -28,11 +28,18 @@ void main() {
   FilledButton protect(WidgetTester tester) =>
       tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'Protect'));
 
-  testWidgets('explains the password and names the file', (tester) async {
+  testWidgets('both fields stay visible above the keyboard on a small phone', (tester) async {
+    // 360x640 dp with a 300 dp keyboard open.
+    tester.view.physicalSize = const Size(1080, 1920);
+    tester.view.devicePixelRatio = 3;
+    tester.view.viewInsets = const FakeViewPadding(bottom: 900);
+    addTearDown(tester.view.reset);
+
     await open(tester);
+    final visibleBottom = 640.0 - 300;
     expect(find.text('Protect PDF'), findsOneWidget);
-    expect(find.textContaining('"invoice.pdf"'), findsOneWidget);
-    expect(find.textContaining("can't be recovered"), findsOneWidget);
+    expect(tester.getRect(confirm).bottom, lessThanOrEqualTo(visibleBottom));
+    expect(tester.getRect(find.text('Protect')).bottom, lessThanOrEqualTo(visibleBottom));
   });
 
   testWidgets('Protect stays disabled until both fields are filled', (tester) async {

@@ -111,7 +111,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     String? newPassword;
     List<int>? splitPages;
     if (tool == 'Encrypt PDF') {
-      newPassword = await showSetPasswordDialog(context, fileName: files.first.name);
+      newPassword = await showSetPasswordDialog(context);
       if (newPassword == null) return;
     } else if (tool == 'Split PDF') {
       final file = files.first;
