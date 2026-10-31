@@ -32,7 +32,7 @@ void main() {
       expect(find.text('Connect'), findsNothing);
       expect(find.text('GitHub'), findsNothing);
       final avatar = tester.widget<Image>(find.byType(Image));
-      expect(((avatar.image as ResizeImage).imageProvider as AssetImage).assetName, 'assets/avatar.jpg');
+      expect(((avatar.image as ResizeImage).imageProvider as AssetImage).assetName, 'assets/avatar.webp');
       expect(find.byIcon(Icons.person), findsNothing);
       expect(find.text('Privacy Policy'), findsOneWidget);
     });

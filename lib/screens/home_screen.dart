@@ -876,9 +876,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                       child: FittedBox(
                                         fit: BoxFit.contain,
                                         child: Image.asset(
-                                          'assets/2.png',
+                                          'assets/2.webp',
                                           height: boxImageSize,
                                           width: boxImageSize,
+                                          cacheWidth: (boxImageSize * MediaQuery.devicePixelRatioOf(context)).ceil(),
                                         ),
                                       ),
                                     ),

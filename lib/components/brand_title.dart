@@ -52,8 +52,8 @@ class AppLogo extends StatelessWidget {
       ),
       child: Transform.scale(
         scale: _zoom,
-        // Decoded at display size rather than the full 820 px source.
-        child: Image.asset('assets/logo2.png', cacheWidth: pixels, filterQuality: FilterQuality.medium),
+        // Decoded at display size rather than the full 384 px source.
+        child: Image.asset('assets/logo.webp', cacheWidth: pixels, filterQuality: FilterQuality.medium),
       ),
     );
   }

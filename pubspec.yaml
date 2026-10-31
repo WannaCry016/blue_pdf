@@ -111,5 +111,5 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: false
-  image_path: "assets/logo2.png"
+  image_path: "branding/logo2.png"
   min_sdk_android: 21

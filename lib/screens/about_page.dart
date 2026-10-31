@@ -155,7 +155,7 @@ class _DeveloperAvatar extends StatelessWidget {
       child: SizedBox.square(
         dimension: size,
         child: Image.asset(
-          'assets/avatar.jpg',
+          'assets/avatar.webp',
           fit: BoxFit.cover,
           // Decoded at display size, whatever the source resolution.
           cacheWidth: (size * MediaQuery.devicePixelRatioOf(context)).ceil(),

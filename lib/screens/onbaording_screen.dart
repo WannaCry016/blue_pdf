@@ -39,16 +39,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               },
               children: [
                 _buildPage(
-                  "assets/3.jpg",
+                  "assets/3.webp",
                   "Welcome to Blue PDF!",
                   "Thanks for downloading! Follow this quick tutorial to get started with all the amazing features.",
                   Colors.blue,
                 ),
-                _buildImageOnlyPage("assets/t1.png"),
-                _buildImageOnlyPage("assets/t2.png"),
-                _buildImageOnlyPage("assets/t3.png"),
+                _buildImageOnlyPage("assets/t1.webp"),
+                _buildImageOnlyPage("assets/t2.webp"),
+                _buildImageOnlyPage("assets/t3.webp"),
                 _buildPage(
-                  "assets/4.jpg",
+                  "assets/4.webp",
                   "You're All Set!",
                   "Everything is ready! Start exploring Blue PDF and discover all its powerful features.",
                   Colors.indigo,

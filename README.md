@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/logo1.png" alt="BLUE PDF" width="180">
+<img src="branding/logo1.png" alt="BLUE PDF" width="180">
 
 ### Fast, private PDF tools for Android
 
