@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:blue_pdf/state_providers.dart';
 import 'package:share_plus/share_plus.dart';
 import 'about_page.dart';
+import 'home_screen.dart' show kDarkAccent, kDarkBg, kDarkBorder, kDarkCard, kDarkPrimary, kDarkSecondaryText, kDarkTeal;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:open_filex/open_filex.dart';
 import '../components/brand_title.dart';
@@ -11,12 +12,6 @@ import '../utils/cache_cleaner.dart';
 import '../pdf/pdf_engine.dart';
 import '../services/review_prompt.dart';
 import '../utils/saved_location.dart';
-
-// Responsive helper: returns true if device is a tablet (width > 600dp)
-bool isTablet(BuildContext context) {
-  final width = MediaQuery.of(context).size.shortestSide;
-  return width >= 600;
-}
 
 class ProcessSuccessScreen extends ConsumerStatefulWidget {
   final SavedPdf saved;
@@ -28,13 +23,19 @@ class ProcessSuccessScreen extends ConsumerStatefulWidget {
 }
 
 class _FileDetails {
-  const _FileDetails(this.name, this.subtitle);
+  const _FileDetails({required this.name, this.size, this.folder});
   final String name;
-  final String subtitle;
+  final String? size;
+  final String? folder;
 }
 
-class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
+class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> with SingleTickerProviderStateMixin {
   late final Future<_FileDetails> _details = _loadDetails();
+
+  late final AnimationController _entrance = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 700),
+  );
 
   @override
   void initState() {
@@ -51,6 +52,17 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
         .ignore();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_entrance.isAnimating || _entrance.isCompleted) return;
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _entrance.value = 1;
+    } else {
+      _entrance.forward();
+    }
+  }
+
   /// The picker lets the user rename the file and Downloads saves clashes as
   /// "name (1).pdf", so ask the provider for the real name first.
   Future<_FileDetails> _loadDetails() async {
@@ -61,63 +73,75 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
     } catch (e) {
       debugPrint('Could not describe saved file: $e');
     }
-    final name = document.name ?? saved.fileName;
     int? size = document.size;
     if (size == null) {
       try {
         size = await File(saved.localPath).length();
       } catch (_) {}
     }
-    final folder = saved.folder ?? savedFolder(saved.location);
-    final parts = [
-      if (size != null) formatFileSize(size),
-      if (folder != null) 'Saved to $folder',
-    ];
-    return _FileDetails(name, parts.isEmpty ? 'Saved' : parts.join('  •  '));
+    return _FileDetails(
+      name: document.name ?? saved.fileName,
+      size: size == null ? null : formatFileSize(size),
+      folder: saved.folder ?? savedFolder(saved.location),
+    );
   }
 
   @override
   void dispose() {
+    _entrance.dispose();
     // The job is done and saved, so its inputs, result and thumbnails can go.
     clearCache(before: DateTime.now()).ignore();
     super.dispose();
   }
 
+  Future<void> _open() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final file = File(widget.saved.localPath);
+    if (!await file.exists()) {
+      messenger.showSnackBar(const SnackBar(content: Text("The preview copy is no longer available.")));
+      return;
+    }
+    final result = await OpenFilex.open(file.path, type: "application/pdf");
+    if (result.type != ResultType.done) {
+      debugPrint('Could not open file: ${result.message}');
+      messenger.showSnackBar(const SnackBar(content: Text("No app is available to open PDFs.")));
+    }
+  }
+
+  Future<void> _share() async {
+    final file = File(widget.saved.localPath);
+    if (!await file.exists()) return;
+    try {
+      await SharePlus.instance.share(ShareParams(files: [XFile(file.path, mimeType: 'application/pdf')]));
+    } catch (e) {
+      debugPrint('Share failed: $e');
+    }
+  }
+
+  /// Fades and lifts [child] in during the [start]–[end] part of the entrance.
+  Widget _reveal(double start, double end, Widget child) {
+    final animation = CurvedAnimation(parent: _entrance, curve: Interval(start, end, curve: Curves.easeOutCubic));
+    return FadeTransition(
+      opacity: animation,
+      child: SlideTransition(
+        position: Tween(begin: const Offset(0, 0.12), end: Offset.zero).animate(animation),
+        child: child,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final isTab = isTablet(context);
-    final bgColor = isDark ? const Color(0xFF101A30) : const Color(0xFFEEEEF0);
-    final cardColor = isDark ? const Color(0xFF1A2236) : Colors.white;
-    final borderColor = isDark ? const Color(0xFF232A3B) : Colors.grey.shade300;
+    final isTab = MediaQuery.sizeOf(context).shortestSide >= 600;
+    final bgColor = isDark ? kDarkBg : const Color(0xFFECEFF1);
+    final cardColor = isDark ? kDarkCard : Colors.white;
+    final borderColor = isDark ? kDarkBorder : Colors.grey.shade300;
     final textColor = isDark ? Colors.white : Colors.black87;
-    final secondaryTextColor = isDark ? const Color(0xFFB0B8C1) : Colors.grey;
-    final accent = isDark ? const Color(0xFF2979FF) : const Color(0xFF1976D2);
-    final gradientColors = isDark
-        ? [const Color(0xFF2979FF), const Color(0xFF536DFE), const Color(0xFF00B8D4)]
-        : [const Color(0xFF0D47A1), const Color(0xFF1976D2)];
-
-    final localPath = widget.saved.localPath;
-
-    // Responsive sizes
-    final double mainFont = isTab ? 36 : 28;
-    final double subFont = isTab ? 22 : 16;
-    final double quoteFont = isTab ? 18 : 13.5;
-    final double cardFont = isTab ? 20 : 14.5;
-    final double fileSizeFont = isTab ? 17 : 13;
-    final double iconSize = isTab ? 48 : 32;
-    final double celebrationIcon = isTab ? 110 : 68;
-    final double celebrationPad = isTab ? 44 : 28;
-    final double cardPad = isTab ? 32 : 18;
-    final double cardRadius = isTab ? 22 : 14;
-    final double buttonFont = isTab ? 22 : 16;
-    final double buttonPad = isTab ? 24 : 16;
-    final double buttonIcon = isTab ? 32 : 22;
-    final double contentMaxWidth = isTab ? 600 : double.infinity;
-    final double contentPad = isTab ? 48 : 24;
-    final double vSpace = isTab ? 44 : 28;
-    final double hButtonSpace = isTab ? 32 : 16;
+    final secondaryTextColor = isDark ? kDarkSecondaryText : Colors.grey.shade600;
+    final accent = isDark ? kDarkAccent : const Color(0xFF1976D2);
+    final gradientColors = isDark ? [kDarkPrimary, kDarkAccent, kDarkTeal] : [const Color(0xFF0D47A1), const Color(0xFF1976D2)];
+    final gradient = LinearGradient(colors: gradientColors, begin: Alignment.topLeft, end: Alignment.bottomRight);
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -125,15 +149,7 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
         elevation: 0,
         toolbarHeight: isTab ? 70 : 50,
         backgroundColor: Colors.transparent,
-        flexibleSpace: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: gradientColors,
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-        ),
+        flexibleSpace: Container(decoration: BoxDecoration(gradient: gradient)),
         automaticallyImplyLeading: false,
         title: isTab ? const BrandTitle(logoSize: 40, fontSize: 28) : const BrandTitle(),
         centerTitle: false,
@@ -141,283 +157,286 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
           IconButton(
             tooltip: "About Developer",
             icon: Icon(Icons.info_outline, color: Colors.white, size: isTab ? 30 : 22),
-            onPressed: () {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const AboutPage()));
-            },
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AboutPage())),
           ),
         ],
       ),
       body: SafeArea(
         child: Center(
-          child: Padding(
-            padding: EdgeInsets.all(contentPad),
-            child: SingleChildScrollView(
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: contentMaxWidth),
-                  child: Column(
-                    children: [
-                      // 🎉 Celebration Icon
-                      Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: LinearGradient(
-                            colors: gradientColors,
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: isDark ? accent.withValues(alpha: 0.18) : Colors.blue.withValues(alpha: 0.18),
-                              blurRadius: isTab ? 28 : 18,
-                              offset: const Offset(0, 6),
-                            ),
-                          ],
+          child: SingleChildScrollView(
+            padding: EdgeInsets.symmetric(horizontal: isTab ? 48 : 24, vertical: 32),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520),
+              child: Column(
+                children: [
+                  _SuccessBadge(animation: _entrance, gradient: gradient, glow: accent, size: isTab ? 112 : 92),
+                  SizedBox(height: isTab ? 32 : 26),
+                  _reveal(
+                    0.3,
+                    0.8,
+                    Column(
+                      children: [
+                        Text(
+                          'PDF saved',
+                          style: TextStyle(fontSize: isTab ? 30 : 24, fontWeight: FontWeight.w700, color: textColor),
                         ),
-                        padding: EdgeInsets.all(celebrationPad),
-                        child: Icon(Icons.celebration_rounded, size: celebrationIcon, color: Colors.white),
-                      ),
-
-                      SizedBox(height: vSpace),
-
-                      // ✅ Headline
-                      Text(
-                        "File Ready 🎉",
-                        style: TextStyle(fontSize: mainFont, fontWeight: FontWeight.bold, color: textColor, letterSpacing: 0.2),
-                      ),
-                      SizedBox(height: isTab ? 20 : 12),
-                      Text(
-                        "Thanks for using Blue PDF!\nYour file is ready to go and saved securely.",
-                        style: TextStyle(fontSize: subFont, color: secondaryTextColor, fontWeight: FontWeight.w500),
-                        textAlign: TextAlign.center,
-                      ),
-                      SizedBox(height: isTab ? 18 : 14),
-                      Text(
-                        "“Great things happen when you're organized.”",
-                        style: TextStyle(
-                          fontSize: quoteFont,
-                          fontStyle: FontStyle.italic,
-                          color: secondaryTextColor.withValues(alpha: 0.7),
-                          height: 1.4,
+                        const SizedBox(height: 8),
+                        Text(
+                          'Your file is ready to open or share.',
+                          style: TextStyle(fontSize: isTab ? 17 : 15, color: secondaryTextColor),
+                          textAlign: TextAlign.center,
                         ),
-                        textAlign: TextAlign.center,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-
-                      SizedBox(height: isTab ? 40 : 32),
-
-                      // 📄 File Info Card
-                      Container(
-                        width: double.infinity,
-                        padding: EdgeInsets.all(cardPad),
-                        decoration: BoxDecoration(
-                          color: cardColor,
-                          borderRadius: BorderRadius.circular(cardRadius),
-                          border: Border.all(color: borderColor),
-                          boxShadow: [
-                            BoxShadow(
-                              color: isDark ? Colors.black26 : Colors.black12,
-                              blurRadius: isTab ? 14 : 8,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.picture_as_pdf, size: iconSize, color: Colors.redAccent),
-                            SizedBox(width: isTab ? 24 : 14),
-                            Expanded(
-                              child: FutureBuilder<_FileDetails>(
-                                future: _details,
-                                builder: (context, snapshot) {
-                                  final details = snapshot.data;
-                                  return Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        details?.name ?? widget.saved.fileName,
-                                        style: TextStyle(
-                                          fontSize: cardFont,
-                                          fontWeight: FontWeight.w600,
-                                          color: textColor,
-                                        ),
-                                        maxLines: isTab ? 3 : 2,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      SizedBox(height: isTab ? 8 : 4),
-                                      Text(
-                                        details?.subtitle ?? '',
-                                        style: TextStyle(fontSize: fileSizeFont, color: secondaryTextColor),
-                                      ),
-                                    ],
-                                  );
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      SizedBox(height: vSpace),
-
-                      // 🔁 Preview + Share
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Container(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: gradientColors,
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                                borderRadius: BorderRadius.circular(cardRadius),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: isDark 
-                                      ? accent.withValues(alpha: 0.13) 
-                                      : Colors.blue.withValues(alpha: 0.08),
-                                    blurRadius: isTab ? 12 : 6,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                                // Add subtle border for light theme
-                                border: isDark 
-                                  ? null 
-                                  : Border.all(color: Colors.blue.withValues(alpha: 0.1), width: 0.5),
-                              ),
-                              child: ElevatedButton.icon(
-                                icon: Icon(Icons.picture_as_pdf_rounded, color: Colors.white, size: buttonIcon),
-                                label: Text("Preview", style: TextStyle(fontSize: buttonFont, color: Colors.white, fontWeight: FontWeight.w500)),
-                                onPressed: () async {
-                                  final messenger = ScaffoldMessenger.of(context);
-                                  final file = File(localPath);
-                                  if (!await file.exists()) {
-                                    messenger.showSnackBar(
-                                      const SnackBar(content: Text("The preview copy is no longer available.")),
-                                    );
-                                    return;
-                                  }
-                                  final result = await OpenFilex.open(file.path, type: "application/pdf");
-                                  if (result.type != ResultType.done) {
-                                    debugPrint('Could not open file: ${result.message}');
-                                    messenger.showSnackBar(
-                                      const SnackBar(content: Text("No app is available to open PDFs.")),
-                                    );
-                                  }
-                                },
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.transparent,
-                                  shadowColor: Colors.transparent,
-                                  padding: EdgeInsets.symmetric(vertical: buttonPad),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(cardRadius)),
-                                  elevation: 0,
-                                ),
-                              ),
-                            ),
-                          ),
-                          SizedBox(width: hButtonSpace),
-                          Expanded(
-                            child: Container(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: gradientColors,
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                                borderRadius: BorderRadius.circular(cardRadius),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: isDark 
-                                      ? accent.withValues(alpha: 0.13) 
-                                      : Colors.blue.withValues(alpha: 0.08),
-                                    blurRadius: isTab ? 12 : 6,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                                // Add subtle border for light theme
-                                border: isDark 
-                                  ? null 
-                                  : Border.all(color: Colors.blue.withValues(alpha: 0.1), width: 0.5),
-                              ),
-                              child: ElevatedButton.icon(
-                                icon: Icon(Icons.share, color: Colors.white, size: buttonIcon),
-                                label: Text("Share", style: TextStyle(fontSize: buttonFont, color: Colors.white, fontWeight: FontWeight.w500)),
-                                onPressed: () async {
-                                  final file = File(localPath);
-                                  if (!await file.exists()) return;
-                                  try {
-                                    await SharePlus.instance.share(
-                                      ShareParams(files: [XFile(file.path, mimeType: 'application/pdf')]),
-                                    );
-                                  } catch (e) {
-                                    debugPrint('Share failed: $e');
-                                  }
-                                },
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.transparent,
-                                  shadowColor: Colors.transparent,
-                                  padding: EdgeInsets.symmetric(vertical: buttonPad),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(cardRadius)),
-                                  elevation: 0,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      SizedBox(height: vSpace),
-
-                      // ⬅️ Back to Home
-                      SizedBox(
-                        width: double.infinity,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: gradientColors,
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(cardRadius),
-                            boxShadow: [
-                              BoxShadow(
-                                color: isDark 
-                                  ? accent.withValues(alpha: 0.13) 
-                                  : Colors.blue.withValues(alpha: 0.08),
-                                blurRadius: isTab ? 12 : 6,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                            // Add subtle border for light theme
-                            border: isDark 
-                              ? null 
-                              : Border.all(color: Colors.blue.withValues(alpha: 0.1), width: 0.5),
-                          ),
-                          child: ElevatedButton.icon(
-                            icon: Icon(Icons.home, color: Colors.white, size: buttonIcon),
-                            label: Text("Back to Home", style: TextStyle(fontSize: buttonFont, color: Colors.white, fontWeight: FontWeight.w500)),
-                            onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.transparent,
-                              shadowColor: Colors.transparent,
-                              padding: EdgeInsets.symmetric(vertical: buttonPad + 4),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(cardRadius)),
-                              elevation: 0,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
+                  SizedBox(height: isTab ? 32 : 28),
+                  _reveal(
+                    0.4,
+                    0.9,
+                    FutureBuilder<_FileDetails>(
+                      future: _details,
+                      builder: (context, snapshot) => _FileCard(
+                        details: snapshot.data ?? _FileDetails(name: widget.saved.fileName),
+                        cardColor: cardColor,
+                        borderColor: borderColor,
+                        textColor: textColor,
+                        secondaryTextColor: secondaryTextColor,
+                        isDark: isDark,
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: isTab ? 32 : 24),
+                  _reveal(
+                    0.5,
+                    1,
+                    Column(
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _GradientButton(
+                                gradient: gradient,
+                                glow: accent,
+                                icon: Icons.open_in_new_rounded,
+                                label: 'Open',
+                                onPressed: _open,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: _share,
+                                icon: const Icon(Icons.share_rounded, size: 20),
+                                label: const Text('Share'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: accent,
+                                  backgroundColor: accent.withValues(alpha: isDark ? 0.12 : 0.06),
+                                  side: BorderSide(color: accent.withValues(alpha: 0.5)),
+                                  minimumSize: const Size.fromHeight(_buttonHeight),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(_buttonRadius)),
+                                  textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        TextButton.icon(
+                          onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
+                          icon: const Icon(Icons.home_rounded, size: 20),
+                          label: const Text('Back to home'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: secondaryTextColor,
+                            minimumSize: const Size.fromHeight(_buttonHeight),
+                            textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
         ),
-      )
+      ),
+    );
+  }
+}
 
+const _buttonHeight = 52.0;
+const _buttonRadius = 14.0;
+
+/// A check in a gradient disc that pops in, with a soft halo that spreads behind it.
+class _SuccessBadge extends StatelessWidget {
+  const _SuccessBadge({required this.animation, required this.gradient, required this.glow, required this.size});
+
+  final Animation<double> animation;
+  final Gradient gradient;
+  final Color glow;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final pop = CurvedAnimation(parent: animation, curve: const Interval(0, 0.55, curve: Curves.easeOutBack));
+    final halo = CurvedAnimation(parent: animation, curve: const Interval(0.15, 0.8, curve: Curves.easeOut));
+    return Semantics(
+      label: 'Saved',
+      child: SizedBox.square(
+        dimension: size * 1.5,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            ScaleTransition(
+              scale: Tween(begin: 0.6, end: 1.0).animate(halo),
+              child: FadeTransition(
+                opacity: halo,
+                child: Container(
+                  decoration: BoxDecoration(shape: BoxShape.circle, color: glow.withValues(alpha: 0.12)),
+                ),
+              ),
+            ),
+            ScaleTransition(
+              scale: pop,
+              child: Container(
+                width: size,
+                height: size,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: gradient,
+                  boxShadow: [BoxShadow(color: glow.withValues(alpha: 0.35), blurRadius: 24, offset: const Offset(0, 8))],
+                ),
+                child: Icon(Icons.check_rounded, color: Colors.white, size: size * 0.55),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FileCard extends StatelessWidget {
+  const _FileCard({
+    required this.details,
+    required this.cardColor,
+    required this.borderColor,
+    required this.textColor,
+    required this.secondaryTextColor,
+    required this.isDark,
+  });
+
+  final _FileDetails details;
+  final Color cardColor;
+  final Color borderColor;
+  final Color textColor;
+  final Color secondaryTextColor;
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    const pdfRed = Color(0xFFE53935);
+    final meta = TextStyle(fontSize: 13, color: secondaryTextColor);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: isDark ? Colors.black26 : Colors.black.withValues(alpha: 0.06),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: pdfRed.withValues(alpha: isDark ? 0.18 : 0.1),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(Icons.picture_as_pdf_rounded, color: pdfRed, size: 28),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  details.name,
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: textColor),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (details.size != null || details.folder != null) ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      if (details.size != null) Text(details.size!, style: meta),
+                      if (details.size != null && details.folder != null)
+                        Padding(padding: const EdgeInsets.symmetric(horizontal: 8), child: Text('•', style: meta)),
+                      if (details.folder != null) ...[
+                        Icon(Icons.folder_rounded, size: 15, color: secondaryTextColor),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(details.folder!, style: meta, maxLines: 1, overflow: TextOverflow.ellipsis),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GradientButton extends StatelessWidget {
+  const _GradientButton({
+    required this.gradient,
+    required this.glow,
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  final Gradient gradient;
+  final Color glow;
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: gradient,
+        borderRadius: BorderRadius.circular(_buttonRadius),
+        boxShadow: [BoxShadow(color: glow.withValues(alpha: 0.25), blurRadius: 12, offset: const Offset(0, 4))],
+      ),
+      child: ElevatedButton.icon(
+        onPressed: onPressed,
+        icon: Icon(icon, size: 20),
+        label: Text(label),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          minimumSize: const Size.fromHeight(_buttonHeight),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(_buttonRadius)),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+      ),
     );
   }
 }
