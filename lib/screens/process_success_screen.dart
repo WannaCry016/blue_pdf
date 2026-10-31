@@ -9,6 +9,7 @@ import '../components/brand_title.dart';
 import '../components/save_pdf.dart' show SavedPdf;
 import '../utils/cache_cleaner.dart';
 import '../pdf/pdf_engine.dart';
+import '../services/review_prompt.dart';
 import '../utils/saved_location.dart';
 
 // Responsive helper: returns true if device is a tablet (width > 600dp)
@@ -45,6 +46,9 @@ class _ProcessSuccessScreenState extends ConsumerState<ProcessSuccessScreen> {
       ref.read(splitPdfFilesProvider.notifier).clear();
       ref.read(reorderPdfFilesProvider.notifier).clear();
     });
+    ReviewPrompt.instance
+        .onSuccessfulSave(stillVisible: () => mounted && (ModalRoute.of(context)?.isCurrent ?? false))
+        .ignore();
   }
 
   /// The picker lets the user rename the file and Downloads saves clashes as

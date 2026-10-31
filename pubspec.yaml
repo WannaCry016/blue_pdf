@@ -50,6 +50,7 @@ dependencies:
   package_info_plus: ^10.2.2
   smooth_page_indicator: ^3.0.0
   flutter_image_compress: ^2.4.0
+  in_app_review: ^2.0.12
   
 dev_dependencies:
   flutter_test:
