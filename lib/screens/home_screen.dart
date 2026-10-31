@@ -16,7 +16,6 @@ import '../pdf/pdf_job.dart';
 import 'process_success_screen.dart';
 import 'about_page.dart';
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
 import '../components/save_pdf.dart';
 import 'package:blue_pdf/state_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -223,53 +222,96 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return admitted;
   }
 
-  /// Copies picked files into the cache when they have no local path and
-  /// converts images MuPDF cannot read, reporting each file as it finishes.
-  /// Cancelling stops waiting; files still in flight are left to the cache.
+  /// Roughly how many file copies one image conversion is worth, for sharing out the progress bar.
+  static const _conversionCost = 8;
+
+  /// Each conversion decodes a full-size bitmap, so only a few run at once.
+  static const _parallelConversions = 3;
+
+  /// Copies picked files into the app, then converts images MuPDF cannot read
+  /// (HEIC, WebP, ...), reporting progress throughout. Unreadable files are
+  /// skipped with a message.
   Future<List<SelectedFile>> _loadPicked(
-    List<PlatformFile> picked, {
+    List<PickedDocument> picked, {
     required bool convertImages,
     required PdfJob job,
+    required VoidCallback onConverting,
   }) async {
-    var done = 0;
-    job.report(PdfProgress.items(0, picked.length));
-    final cancelled = Completer<Never>();
-    job.onCancel(() => cancelled.completeError(const PdfFailure(PdfErrorCode.cancelled)));
+    final toConvert = convertImages ? picked.where((f) => !isNativeImage(f.name)).length : 0;
+    final copyShare = picked.length / (picked.length + toConvert * _conversionCost);
 
-    final loaded = await Future.any([
-      Future.wait(picked.map((file) async {
-        final selected = await SelectedFile.fromPicked(file);
-        final ready = convertImages ? await ensureNativeImage(selected) : selected;
-        job.report(PdfProgress.items(++done, picked.length));
-        return ready;
-      })),
-      cancelled.future,
-    ]);
-
-    final files = loaded.whereType<SelectedFile>().toList();
-    final failed = loaded.length - files.length;
-    if (failed > 0) {
-      _showMessage(failed == 1
-          ? "1 image couldn't be read and was skipped."
-          : "$failed images couldn't be read and were skipped.");
+    final copyJob = PdfJob();
+    job.onCancel(copyJob.cancel);
+    void forwardCopyProgress() {
+      final progress = copyJob.progress.value;
+      if (progress == null) return;
+      job.report(PdfProgress(
+        stage: PdfStage.processing,
+        done: progress.done,
+        total: progress.total,
+        fraction: progress.fraction * copyShare,
+      ));
     }
-    return files;
+
+    copyJob.progress.addListener(forwardCopyProgress);
+    final List<String?> paths;
+    try {
+      paths = await PdfEngine.importFiles(picked, job: copyJob);
+    } finally {
+      copyJob.progress.removeListener(forwardCopyProgress);
+    }
+
+    final files = <SelectedFile?>[
+      for (var i = 0; i < picked.length; i++)
+        if (paths[i] case final path?) SelectedFile(name: picked[i].name, path: path) else null,
+    ];
+
+    final pending = [
+      for (var i = 0; i < files.length; i++)
+        if (convertImages && files[i] != null && !isNativeImage(files[i]!.name)) i,
+    ].iterator;
+    if (toConvert > 0) onConverting();
+    var converted = 0;
+    Future<void> convertNext() async {
+      while (pending.moveNext()) {
+        final index = pending.current;
+        job.throwIfCancelled();
+        files[index] = await ensureNativeImage(files[index]!);
+        converted++;
+        job.report(PdfProgress(
+          stage: PdfStage.processing,
+          done: converted,
+          total: toConvert,
+          fraction: copyShare + (1 - copyShare) * converted / toConvert,
+        ));
+      }
+    }
+
+    await Future.wait([for (var i = 0; i < _parallelConversions; i++) convertNext()]);
+    job.throwIfCancelled();
+
+    final ready = files.whereType<SelectedFile>().toList();
+    final failed = files.length - ready.length;
+    if (failed > 0) {
+      final noun = convertImages ? 'image' : 'file';
+      _showMessage(failed == 1
+          ? "1 $noun couldn't be read and was skipped."
+          : "$failed ${noun}s couldn't be read and were skipped.");
+    }
+    return ready;
   }
 
   Future<void> _pickFiles() async {
     final tool = ref.read(selectedToolProvider);
     if (tool == null) return;
 
-    final List<PlatformFile> picked;
+    final images = tool == 'Image to PDF';
+    final List<PickedDocument> picked;
     try {
-      if (tool == 'Image to PDF') {
-        picked = await FilePicker.pickFiles(type: FileType.image);
-      } else if (tool == 'Merge PDF') {
-        picked = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: ['pdf']);
-      } else {
-        final single = await FilePicker.pickFile(type: FileType.custom, allowedExtensions: ['pdf']);
-        picked = single == null ? [] : [single];
-      }
+      picked = await PdfEngine.pickFiles(
+        images ? PickKind.images : PickKind.pdf,
+        multiple: images || tool == 'Merge PDF',
+      );
     } catch (e) {
       debugPrint('File picker failed: $e');
       _showMessage("Couldn't open the file picker.");
@@ -277,16 +319,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
     if (picked.isEmpty || !mounted) return;
 
-    final images = tool == 'Image to PDF';
+    final count = picked.length;
+    final title = switch ((images, count)) {
+      (true, 1) => 'Adding image',
+      (true, _) => 'Adding $count images',
+      (false, 1) => 'Opening PDF',
+      (false, _) => 'Adding $count PDFs',
+    };
+    var converting = false;
     final List<SelectedFile> files;
     try {
       files = await runWithProgress(
         context,
-        title: images ? 'Preparing images' : 'Loading files',
-        describe: (progress) => progress.stage == PdfStage.writing
-            ? 'Done'
-            : '${progress.done} of ${progress.total} ${images ? 'images' : 'files'}',
-        task: (job) => _loadPicked(picked, convertImages: images, job: job),
+        title: title,
+        describe: (progress) => switch (progress) {
+          PdfProgress(stage: PdfStage.writing) => 'Done',
+          _ when converting => 'Converting ${progress.done} of ${progress.total}',
+          PdfProgress(total: 1) => 'Copying...',
+          _ => '${progress.done} of ${progress.total}',
+        },
+        task: (job) => _loadPicked(
+          picked,
+          convertImages: images,
+          job: job,
+          onConverting: () => converting = true,
+        ),
       );
     } on PdfFailure catch (failure) {
       _showFailure('Loading picked files', failure);

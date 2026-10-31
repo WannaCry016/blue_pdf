@@ -22,12 +22,17 @@ import java.security.MessageDigest
 import java.util.concurrent.atomic.AtomicInteger
 
 /** Serves `com.bluepdf.channel/pdf`. Every operation runs off the main thread. */
-class PdfChannel(context: Context, messenger: BinaryMessenger) : MethodChannel.MethodCallHandler {
+class PdfChannel(
+    context: Context,
+    messenger: BinaryMessenger,
+    private val picker: DocumentPicker,
+) : MethodChannel.MethodCallHandler {
 
     private val cacheDir: File = context.cacheDir
     private val contentResolver: ContentResolver = context.contentResolver
     private val channel = MethodChannel(messenger, NAME)
     private val jobs = PdfJobs(messenger)
+    private val importer = FileImporter(contentResolver, cacheDir)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     // Native rendering keeps one document open between calls, so renders are serialised.
@@ -99,6 +104,19 @@ class PdfChannel(context: Context, messenger: BinaryMessenger) : MethodChannel.M
                 result.success(null)
             }
 
+            "pickFiles" -> pickFiles(call, result)
+
+            "importFiles" -> runJob(call, result) { progress ->
+                val files = call.argument<List<Map<String, Any?>>>("files")
+                    ?: throw IllegalArgumentException("Missing 'files'")
+                importer.import(
+                    files.map {
+                        PickedFile(Uri.parse(it["uri"] as String), it["name"] as String, (it["size"] as Number?)?.toLong())
+                    },
+                    progress,
+                )
+            }
+
             "renderPage" -> run(call, result, renderDispatcher) { renderPage(call) }
 
             "describeSaved" -> run(call, result) { describeSaved(Uri.parse(call.requireString("uri"))) }
@@ -110,8 +128,27 @@ class PdfChannel(context: Context, messenger: BinaryMessenger) : MethodChannel.M
         }
     }
 
+    /** Completes once the picker closes, with each file's URI, name and size; files are read later by `importFiles`. */
+    private fun pickFiles(call: MethodCall, result: MethodChannel.Result) {
+        val started = try {
+            picker.pick(call.requireString("kind"), call.argument<Boolean>("multiple") ?: false) { uris ->
+                run(call, result) {
+                    uris.map { uri ->
+                        val file = importer.describe(uri)
+                        mapOf("uri" to file.uri.toString(), "name" to file.name, "size" to file.size)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Could not open the picker", e)
+            result.error("UNKNOWN", e.message, null)
+            return
+        }
+        if (!started) result.error("UNKNOWN", "A picker is already open", null)
+    }
+
     /** Like [run], reporting progress for the call's optional `jobId`. */
-    private fun runJob(call: MethodCall, result: MethodChannel.Result, block: (PdfProgressListener?) -> Any?) {
+    private fun runJob(call: MethodCall, result: MethodChannel.Result, block: suspend (PdfProgressListener?) -> Any?) {
         val jobId = call.argument<Number>("jobId")?.toInt()
         val job = jobs.start(jobId)
         run(call, result) {
@@ -127,7 +164,7 @@ class PdfChannel(context: Context, messenger: BinaryMessenger) : MethodChannel.M
         call: MethodCall,
         result: MethodChannel.Result,
         dispatcher: CoroutineDispatcher = Dispatchers.IO,
-        block: () -> Any?,
+        block: suspend () -> Any?,
     ) {
         scope.launch {
             try {

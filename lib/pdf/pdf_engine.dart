@@ -70,6 +70,19 @@ class ImagesToPdfResult {
   final List<int> skipped;
 }
 
+enum PickKind { images, pdf }
+
+/// A document chosen in the system picker, not yet copied into the app.
+class PickedDocument {
+  const PickedDocument({required this.uri, required this.name, this.size});
+
+  final String uri;
+
+  /// Display name, with an extension added when the provider gave none.
+  final String name;
+  final int? size;
+}
+
 class SavedDocument {
   const SavedDocument({this.name, this.size});
 
@@ -151,6 +164,31 @@ class PdfEngine {
         'width': width,
         'password': password,
       });
+
+  /// Opens the system picker. Completes as soon as it closes, before any file is
+  /// read, with an empty list if the user backed out.
+  static Future<List<PickedDocument>> pickFiles(PickKind kind, {bool multiple = false}) async {
+    final result = await _invoke<List<Object?>>('pickFiles', {'kind': kind.name, 'multiple': multiple});
+    return [
+      for (final file in result.cast<Map<Object?, Object?>>())
+        PickedDocument(uri: file['uri']! as String, name: file['name']! as String, size: file['size'] as int?),
+    ];
+  }
+
+  /// Copies [files] into the cache so they can be opened by path. Returns one
+  /// path per file, in order, or null where a file couldn't be read.
+  static Future<List<String?>> importFiles(List<PickedDocument> files, {PdfJob? job}) async {
+    final result = await _invoke<List<Object?>>(
+      'importFiles',
+      {
+        'files': [
+          for (final file in files) {'uri': file.uri, 'name': file.name, 'size': file.size},
+        ],
+      },
+      job: job,
+    );
+    return result.cast<String?>();
+  }
 
   /// Name and size of a document saved through the system file picker.
   static Future<SavedDocument> describeSaved(String uri) async {

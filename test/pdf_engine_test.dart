@@ -75,6 +75,47 @@ void main() {
       });
     });
 
+    test('pickFiles asks for the kind and parses names and sizes', () async {
+      respond = (_) => [
+            {'uri': 'content://media/1', 'name': 'a.jpg', 'size': 2048},
+            {'uri': 'content://media/2', 'name': 'b.heic', 'size': null},
+          ];
+
+      final picked = await PdfEngine.pickFiles(PickKind.images, multiple: true);
+
+      expect(calls.single.method, 'pickFiles');
+      expect(calls.single.arguments, {'kind': 'images', 'multiple': true});
+      expect(picked.map((f) => (f.uri, f.name, f.size)), [
+        ('content://media/1', 'a.jpg', 2048),
+        ('content://media/2', 'b.heic', null),
+      ]);
+    });
+
+    test('pickFiles returns nothing when the user backs out', () async {
+      respond = (_) => <Object?>[];
+
+      expect(await PdfEngine.pickFiles(PickKind.pdf), isEmpty);
+      expect(calls.single.arguments, {'kind': 'pdf', 'multiple': false});
+    });
+
+    test('importFiles sends every file and keeps unreadable ones as null', () async {
+      respond = (_) => ['/cache/picked/0_a.pdf', null];
+      const files = [
+        PickedDocument(uri: 'content://docs/a', name: 'a.pdf', size: 10),
+        PickedDocument(uri: 'content://docs/b', name: 'b.pdf'),
+      ];
+
+      final paths = await PdfEngine.importFiles(files, job: PdfJob());
+
+      expect(paths, ['/cache/picked/0_a.pdf', null]);
+      final arguments = calls.single.arguments as Map;
+      expect(arguments['files'], [
+        {'uri': 'content://docs/a', 'name': 'a.pdf', 'size': 10},
+        {'uri': 'content://docs/b', 'name': 'b.pdf', 'size': null},
+      ]);
+      expect(arguments['jobId'], isA<int>());
+    });
+
     test('maps native error codes to typed failures', () async {
       respond = (_) => throw PlatformException(code: 'PASSWORD_REQUIRED', message: 'needs password');
 

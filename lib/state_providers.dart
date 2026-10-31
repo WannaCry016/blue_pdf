@@ -1,9 +1,6 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/legacy.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 enum ViewMode { list, grid }
 
@@ -72,17 +69,6 @@ class SelectedFile {
   String? get extension {
     final ext = p.extension(name);
     return ext.isEmpty ? null : ext.substring(1).toLowerCase();
-  }
-
-  /// Picked files without a local path (content URIs) are copied into the cache.
-  static Future<SelectedFile> fromPicked(PlatformFile file) async {
-    final localPath = file.path;
-    if (localPath != null) return SelectedFile(name: file.name, path: localPath);
-
-    final dir = await getTemporaryDirectory();
-    final copy = File(p.join(dir.path, '${DateTime.now().microsecondsSinceEpoch}_${file.name}'));
-    await copy.writeAsBytes(await file.readAsBytes());
-    return SelectedFile(name: file.name, path: copy.path);
   }
 }
 

@@ -10,10 +10,14 @@ import '../state_providers.dart';
 /// Image formats MuPDF can embed directly.
 const nativeImageExtensions = {'jpg', 'jpeg', 'png', 'gif', 'bmp', 'tif', 'tiff'};
 
+/// Whether MuPDF can embed the image named [name] without converting it.
+bool isNativeImage(String name) =>
+    nativeImageExtensions.contains(p.extension(name).replaceFirst('.', '').toLowerCase());
+
 /// Returns [file] if MuPDF can read it, otherwise a JPEG copy (HEIC, WebP, ...).
 /// Returns null when the image cannot be decoded on this device.
 Future<SelectedFile?> ensureNativeImage(SelectedFile file) async {
-  if (nativeImageExtensions.contains(file.extension)) return file;
+  if (isNativeImage(file.name)) return file;
 
   final baseName = p.basenameWithoutExtension(file.name);
   try {
