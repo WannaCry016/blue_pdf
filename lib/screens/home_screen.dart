@@ -10,6 +10,7 @@ import '../components/camera.dart';
 import '../components/dropdown.dart';
 import '../components/pdf_password_dialog.dart';
 import '../components/set_password_dialog.dart';
+import '../components/update_ready_snack_bar.dart';
 import '../pdf/image_formats.dart';
 import '../pdf/pdf_engine.dart';
 import '../pdf/pdf_job.dart';
@@ -41,8 +42,25 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
 
-  // Static variable to track if we've checked for updates
+  /// Once per app run, even if the home screen is rebuilt or replaced.
   static bool _hasCheckedForUpdate = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkForUpdate());
+  }
+
+  void _checkForUpdate() {
+    if (_hasCheckedForUpdate || !mounted) return;
+    _hasCheckedForUpdate = true;
+    // The app-wide messenger, so the message still shows on whatever screen is open by then.
+    final messenger = ScaffoldMessenger.of(context);
+    final updates = UpdateService.instance;
+    updates
+        .check(onReady: () => messenger.showSnackBar(updateReadySnackBar(onRestart: updates.installDownloaded)))
+        .ignore();
+  }
 
   final fileProviders = {
     'Merge PDF': mergePdfFilesProvider,
@@ -417,15 +435,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final gradientColors = isDark
         ? [kDarkPrimary, kDarkAccent, kDarkTeal]
         : [Color(0xFF0D47A1), Color(0xFF1976D2)];
-
-    // Check for updates only once when the widget builds
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_hasCheckedForUpdate) {
-        _hasCheckedForUpdate = true;
-        UpdateService.checkForUpdate(context);
-      }
-    });
-
     // Before a slow job's progress dialog appears, nothing else may be tapped.
     return AbsorbPointer(
       absorbing: isProcessing,

@@ -1,333 +1,91 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:in_app_update/in_app_update.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+/// Keeps the app current through Google Play in-app updates.
+///
+/// Play's own sheet asks the user. An accepted update downloads in the
+/// background while they keep working, then [check] calls `onReady` so the
+/// app can offer a restart; nothing restarts the app until the user asks for
+/// it with [installDownloaded]. A declined update is not offered again for
+/// [askInterval], so it never nags on every launch.
 class UpdateService {
-  static bool _isCheckingForUpdate = false;
+  UpdateService({
+    Future<AppUpdateInfo> Function()? checkForUpdate,
+    Future<AppUpdateResult> Function()? startFlexibleUpdate,
+    Future<AppUpdateResult> Function()? performImmediateUpdate,
+    Future<void> Function()? completeFlexibleUpdate,
+    DateTime Function()? now,
+  })  : _checkForUpdate = checkForUpdate ?? InAppUpdate.checkForUpdate,
+        _startFlexibleUpdate = startFlexibleUpdate ?? InAppUpdate.startFlexibleUpdate,
+        _performImmediateUpdate = performImmediateUpdate ?? InAppUpdate.performImmediateUpdate,
+        _completeFlexibleUpdate = completeFlexibleUpdate ?? InAppUpdate.completeFlexibleUpdate,
+        _now = now ?? DateTime.now;
 
-  /// Check for available updates
-  static Future<void> checkForUpdate(BuildContext context) async {
-    if (_isCheckingForUpdate) return;
-    _isCheckingForUpdate = true;
+  static final instance = UpdateService();
 
+  static const askInterval = Duration(days: 3);
+  static const _lastOfferedKey = 'update_last_offered_at';
+
+  final Future<AppUpdateInfo> Function() _checkForUpdate;
+  final Future<AppUpdateResult> Function() _startFlexibleUpdate;
+  final Future<AppUpdateResult> Function() _performImmediateUpdate;
+  final Future<void> Function() _completeFlexibleUpdate;
+  final DateTime Function() _now;
+
+  bool _checking = false;
+
+  /// Offers an available update and calls [onReady] once one is downloaded,
+  /// including one downloaded in an earlier session but never installed.
+  Future<void> check({required VoidCallback onReady}) async {
+    if (_checking) return;
+    _checking = true;
     try {
-      // Check if update is available
-      final AppUpdateInfo updateInfo = await InAppUpdate.checkForUpdate();
+      final info = await _checkForUpdate();
+      if (info.installStatus == InstallStatus.downloaded) {
+        onReady();
+        return;
+      }
+      // An immediate update the user started is resumed, as Play requires.
+      if (info.updateAvailability == UpdateAvailability.developerTriggeredUpdateInProgress) {
+        await _performImmediateUpdate();
+        return;
+      }
+      if (info.updateAvailability != UpdateAvailability.updateAvailable) return;
+      if (!info.flexibleUpdateAllowed && !info.immediateUpdateAllowed) return;
+      if (!await _takeTurnToOffer()) return;
 
-      if (updateInfo.updateAvailability == UpdateAvailability.updateAvailable &&
-          context.mounted) {
-        _showUpdateDialog(context, updateInfo);
+      if (info.flexibleUpdateAllowed) {
+        // Completes once the download finishes, or as declined.
+        if (await _startFlexibleUpdate() == AppUpdateResult.success) onReady();
+      } else {
+        await _performImmediateUpdate();
       }
     } catch (e) {
-      debugPrint('Error checking for update: $e');
+      // Updating must never get in the way of using the app.
+      debugPrint('Update check skipped: $e');
     } finally {
-      _isCheckingForUpdate = false;
+      _checking = false;
     }
   }
 
-  /// Show update dialog to user
-  static void _showUpdateDialog(BuildContext context, AppUpdateInfo updateInfo) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          child: Container(
-            width: 320,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.1),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Header
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(20),
-                  decoration: const BoxDecoration(
-                    color: Colors.blue,
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(16),
-                      topRight: Radius.circular(16),
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      const Icon(
-                        Icons.system_update,
-                        color: Colors.white,
-                        size: 32,
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Update Available',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                // Content
-                Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    children: [
-                      const Text(
-                        'A new version of the app is available.',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.black87,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'Would you like to update now?',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.black87,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      if (updateInfo.immediateUpdateAllowed) ...[
-                        const SizedBox(height: 16),
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.blue[50],
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.blue[200]!),
-                          ),
-                          child: const Text(
-                            'This update contains important improvements.',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w500,
-                              color: Colors.blue,
-                              fontSize: 14,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                // Actions
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                  child: Row(
-                    children: [
-                      if (updateInfo.flexibleUpdateAllowed) ...[
-                        Expanded(
-                          child: TextButton(
-                            onPressed: () {
-                              Navigator.of(context).pop();
-                              _performFlexibleUpdate();
-                            },
-                            child: const Text('Background'),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                      ],
-                      if (updateInfo.immediateUpdateAllowed)
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: () {
-                              Navigator.of(context).pop();
-                              _performImmediateUpdate();
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blue,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            child: const Text(
-                              'Update Now',
-                              style: TextStyle(fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  /// Perform immediate update (app restarts after update)
-  static Future<void> _performImmediateUpdate() async {
+  /// Restarts the app into the update that [check] reported as ready.
+  Future<void> installDownloaded() async {
     try {
-      await InAppUpdate.performImmediateUpdate();
+      await _completeFlexibleUpdate();
     } catch (e) {
-      debugPrint('Error performing immediate update: $e');
+      debugPrint('Could not install the update: $e');
     }
   }
 
-  /// Perform flexible update (download in background)
-  static Future<void> _performFlexibleUpdate() async {
-    try {
-      await InAppUpdate.startFlexibleUpdate();
-      
-      // Listen for download completion
-      InAppUpdate.completeFlexibleUpdate().then((_) {
-        // Show snackbar or restart app
-        debugPrint('Flexible update completed');
-      });
-    } catch (e) {
-      debugPrint('Error performing flexible update: $e');
-    }
-  }
-
-  /// Force check for critical updates (call on app start)
-  static Future<void> checkForCriticalUpdate(BuildContext context) async {
-    try {
-      final AppUpdateInfo updateInfo = await InAppUpdate.checkForUpdate();
-      if (!context.mounted) return;
-
-      if (updateInfo.updateAvailability == UpdateAvailability.updateAvailable) {
-        if (updateInfo.immediateUpdateAllowed) {
-          // For critical updates, show non-dismissible dialog
-          _showCriticalUpdateDialog(context);
-        } else {
-          _showUpdateDialog(context, updateInfo);
-        }
-      }
-    } catch (e) {
-      debugPrint('Error checking for critical update: $e');
-    }
-  }
-
-  /// Show critical update dialog (non-dismissible)
-  static void _showCriticalUpdateDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return PopScope(
-          canPop: false,
-          child: Dialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            child: Container(
-              width: 320,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.15),
-                    blurRadius: 15,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Critical header
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(20),
-                    decoration: const BoxDecoration(
-                      color: Colors.red,
-                      borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(16),
-                        topRight: Radius.circular(16),
-                      ),
-                    ),
-                    child: Column(
-                      children: [
-                        const Icon(
-                          Icons.warning,
-                          color: Colors.white,
-                          size: 32,
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Critical Update Required',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Content
-                  Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.red[50],
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.red[200]!),
-                          ),
-                          child: const Text(
-                            'This update contains important security fixes and is required to continue using the app.',
-                            style: TextStyle(
-                              fontSize: 15,
-                              color: Colors.red,
-                              fontWeight: FontWeight.w500,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: _performImmediateUpdate,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.red,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            child: const Text(
-                              'Update Now',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 16,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
+  Future<bool> _takeTurnToOffer() async {
+    final prefs = await SharedPreferences.getInstance();
+    final now = _now();
+    final last = prefs.getInt(_lastOfferedKey);
+    if (last != null && now.difference(DateTime.fromMillisecondsSinceEpoch(last)) < askInterval) return false;
+    await prefs.setInt(_lastOfferedKey, now.millisecondsSinceEpoch);
+    return true;
   }
 
   /// The user-facing version, e.g. "1.0.3" (without the Play build number).
