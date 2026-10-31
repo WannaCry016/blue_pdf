@@ -40,6 +40,13 @@ void main() {
     testWidgets('Privacy Policy lists every section and the contact ($brightness)', (tester) async {
       await show(tester, const PrivacyPolicyPage(), brightness);
 
+      // The header gradient must fill the app bar, like every other screen.
+      final gradient = find.descendant(
+        of: find.byType(AppBar),
+        matching: find.byWidgetPredicate((w) => w is Container && w.decoration is BoxDecoration),
+      );
+      expect(tester.getSize(gradient), tester.getSize(find.byType(AppBar)));
+
       expect(find.text('Private by design'), findsOneWidget);
       expect(find.text('Last updated ${PrivacyPolicyPage.lastUpdated}'), findsOneWidget);
       await tester.scrollUntilVisible(find.text(PrivacyPolicyPage.contactEmail), 300);

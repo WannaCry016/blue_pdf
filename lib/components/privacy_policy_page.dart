@@ -83,7 +83,8 @@ class PrivacyPolicyPage extends StatelessWidget {
         centerTitle: true,
         elevation: 0,
         backgroundColor: Colors.transparent,
-        flexibleSpace: DecoratedBox(
+        // A Container, not a DecoratedBox: with no child it must expand to fill the bar.
+        flexibleSpace: Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(colors: gradientColors, begin: Alignment.topLeft, end: Alignment.bottomRight),
           ),
