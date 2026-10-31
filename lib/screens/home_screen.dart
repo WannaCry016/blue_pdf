@@ -9,6 +9,7 @@ import '../components/brand_title.dart';
 import '../components/camera.dart';
 import '../components/dropdown.dart';
 import '../components/pdf_password_dialog.dart';
+import '../components/set_password_dialog.dart';
 import '../pdf/image_formats.dart';
 import '../pdf/pdf_engine.dart';
 import '../pdf/pdf_job.dart';
@@ -64,34 +65,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     _showMessage(failure.message);
   }
 
-  Future<String?> _promptPassword({required String action}) async {
-    final controller = TextEditingController();
-    final password = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text("$action PDF"),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(hintText: "Password"),
-          obscureText: true,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, null),
-            child: const Text("Cancel"),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, controller.text),
-            child: Text(action),
-          ),
-        ],
-      ),
-    );
-    controller.dispose();
-    return password;
-  }
-
   String _progressTitle(String tool, int count) => switch (tool) {
         'Merge PDF' => 'Merging $count PDFs',
         'Image to PDF' => count == 1 ? 'Creating PDF' : 'Creating PDF from $count images',
@@ -138,12 +111,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     String? newPassword;
     List<int>? splitPages;
     if (tool == 'Encrypt PDF') {
-      newPassword = await _promptPassword(action: "Encrypt");
+      newPassword = await showSetPasswordDialog(context);
       if (newPassword == null) return;
-      if (newPassword.isEmpty) {
-        _showMessage("Please enter a password to encrypt.");
-        return;
-      }
     } else if (tool == 'Split PDF') {
       final file = files.first;
       final PdfInfo info;
