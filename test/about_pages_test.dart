@@ -31,8 +31,9 @@ void main() {
       expect(find.text('Version 1.0.3'), findsOneWidget);
       expect(find.text('Connect'), findsNothing);
       expect(find.text('GitHub'), findsNothing);
-      // No avatar image is bundled yet, so the placeholder shows instead of an error.
-      expect(find.byIcon(Icons.person), findsOneWidget);
+      final avatar = tester.widget<Image>(find.byType(Image));
+      expect(((avatar.image as ResizeImage).imageProvider as AssetImage).assetName, 'assets/avatar.jpg');
+      expect(find.byIcon(Icons.person), findsNothing);
       expect(find.text('Privacy Policy'), findsOneWidget);
     });
 

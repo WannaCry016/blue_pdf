@@ -139,7 +139,7 @@ class AboutPage extends StatelessWidget {
   }
 }
 
-/// The developer's picture from `assets/avatar.png`, or a person icon until one is added.
+/// The developer's picture, with a person icon if it can't be loaded.
 class _DeveloperAvatar extends StatelessWidget {
   const _DeveloperAvatar({required this.size});
 
@@ -155,7 +155,7 @@ class _DeveloperAvatar extends StatelessWidget {
       child: SizedBox.square(
         dimension: size,
         child: Image.asset(
-          'assets/avatar.png',
+          'assets/avatar.jpg',
           fit: BoxFit.cover,
           // Decoded at display size, whatever the source resolution.
           cacheWidth: (size * MediaQuery.devicePixelRatioOf(context)).ceil(),
