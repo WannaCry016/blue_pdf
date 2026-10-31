@@ -106,7 +106,7 @@ class AboutPage extends StatelessWidget {
             leading: Icon(Icons.bug_report_outlined, color: Colors.blueGrey.shade300),
             title: Text("Bug / Feature Request", style: TextStyle(fontSize: 14.5, color: textColor)),
             trailing: const Icon(Icons.arrow_forward_ios, size: 14),
-            onTap: () => _launchURL("mailto:ayushmanpal@proton.me?subject=Blue%20PDF%20Feedback"),
+            onTap: () => _launchURL("mailto:payushman72@gmail.com?subject=Blue%20PDF%20Feedback"),
           ),
           Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
           ListTile(
