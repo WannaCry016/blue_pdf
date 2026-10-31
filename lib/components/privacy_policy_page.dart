@@ -1,223 +1,213 @@
-// lib/privacy_policy_page.dart
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class PrivacyPolicyPage extends StatelessWidget {
   const PrivacyPolicyPage({super.key});
 
-  // --- 1. Colors are defined right here. No extra file needed. ---
-  static const Color _primaryBlue = Color.fromARGB(255, 6, 42, 71);
-  static const Color _accentBlue = Color.fromARGB(255, 95, 144, 185);
-  static const Color _successGreen = Color(0xFF2E7D32);
+  static const lastUpdated = 'October 31, 2026';
+  static const contactEmail = 'payushman72@gmail.com';
+
+  static const _sections = [
+    (
+      icon: Icons.phone_android_rounded,
+      title: 'Your files stay on your device',
+      body:
+          'Every PDF and image you open is processed on your phone by the app\'s built-in PDF engine. '
+          'Nothing is uploaded, and the app does not even have permission to use the internet.',
+    ),
+    (
+      icon: Icons.block_rounded,
+      title: 'No data collection',
+      body:
+          'There are no accounts, ads, analytics or tracking. We never see your files, '
+          'your usage or who you are.',
+    ),
+    (
+      icon: Icons.key_rounded,
+      title: 'Passwords',
+      body:
+          'Passwords you enter to protect or unlock a PDF are used only for that file, '
+          'only while it is processed. They are never stored or shared.',
+    ),
+    (
+      icon: Icons.photo_camera_outlined,
+      title: 'Camera',
+      body:
+          'The camera is the only permission the app asks for, and only when you choose to '
+          'capture a page. Photos are used for your PDF and nothing else.',
+    ),
+    (
+      icon: Icons.folder_outlined,
+      title: 'Files you open and save',
+      body:
+          'Files are opened through Android\'s file picker, so the app sees only what you select. '
+          'Results are saved to Download/BLUE PDF or a folder you choose, and remain yours after '
+          'uninstalling. Working copies are kept in the app\'s private storage and deleted automatically.',
+    ),
+    (
+      icon: Icons.shop_outlined,
+      title: 'Google Play',
+      body:
+          'Update notices and the rating prompt are provided by Google Play. Your rating goes to '
+          'Google, not to the app. Google Play may share anonymous crash and performance statistics with '
+          'developers, as it does for every app, under Google\'s Privacy Policy.',
+    ),
+    (
+      icon: Icons.update_rounded,
+      title: 'Changes to this policy',
+      body:
+          'If anything here changes, this page will be updated in the app first, '
+          'with a new date at the top.',
+    ),
+  ];
 
   @override
   Widget build(BuildContext context) {
-    final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
-
-    // Define adaptive colors based on theme
-    final Color backgroundColor = isDarkMode ? const Color(0xFF121212) : const Color(0xFFF2F5F8);
-    final Color cardColor = isDarkMode ? const Color.fromARGB(255, 29, 41, 51) : Colors.white;
-    final Color textColor = isDarkMode ? Colors.white70 : Colors.black87;
-    final Color headingColor = isDarkMode ? _accentBlue : _primaryBlue;
-    final gradientColors = isDarkMode
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF101A30) : Colors.grey[100];
+    final cardColor = isDark ? const Color(0xFF1A2236) : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final bodyColor = isDark ? Colors.white70 : Colors.black87;
+    final secondaryTextColor = isDark ? const Color(0xFFB0B8C1) : Colors.grey.shade600;
+    final accent = isDark ? const Color(0xFF536DFE) : const Color(0xFF1976D2);
+    final gradientColors = isDark
         ? [const Color(0xFF2979FF), const Color(0xFF536DFE), const Color(0xFF00B8D4)]
         : [const Color(0xFF0D47A1), const Color(0xFF1976D2)];
 
     return Scaffold(
-      backgroundColor: backgroundColor,
+      backgroundColor: bgColor,
       appBar: AppBar(
-        iconTheme: const IconThemeData(
-          color: Colors.white, // Changed icon color to white
-        ),
-        title: const Text("Privacy Policy"),
-        titleTextStyle: const TextStyle(
-          color: Colors.white, // Changed title color to white
-          fontSize: 20.0,
-          fontWeight: FontWeight.w600,
-        ),
+        iconTheme: const IconThemeData(color: Colors.white),
+        title: const Text('Privacy Policy'),
+        titleTextStyle: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
         centerTitle: true,
         elevation: 0,
         backgroundColor: Colors.transparent,
-        flexibleSpace: Container(
+        flexibleSpace: DecoratedBox(
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: gradientColors,
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
+            gradient: LinearGradient(colors: gradientColors, begin: Alignment.topLeft, end: Alignment.bottomRight),
           ),
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // --- Intro Section ---
-            Text(
-              "Our Commitment to Your Privacy",
-              style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold, color: headingColor),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              "Last updated: July 1, 2025", // Use a real date
-              style: TextStyle(color: Colors.grey[500], fontStyle: FontStyle.italic),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Blue PDF is built on a foundation of trust. This policy outlines how your information is handled. The short version: everything stays on your device.',
-              style: TextStyle(fontSize: 15, height: 1.5, color: textColor),
-            ),
-            const SizedBox(height: 32),
-
-            // --- Policy Sections in Cards ---
-            _buildSection(
-              icon: Icons.lock_outline,
-              title: "1. Zero Data Collection",
-              content: "We do not collect, store, transmit, or sell any of your personal information. Your files, usage patterns, and identity remain completely private and on your device.",
-              cardColor: cardColor,
-              textColor: textColor,
-              headingColor: headingColor,
-            ),
-            _buildSection(
-              icon: Icons.folder_open_outlined,
-              title: "2. On-Device File Access",
-              content: "The app requests storage access only to let you select images and save your PDFs. All processing happens locally. Nothing is ever uploaded to a server.",
-              cardColor: cardColor,
-              textColor: textColor,
-              headingColor: headingColor,
-            ),
-            _buildSection(
-              icon: Icons.camera_alt_outlined,
-              title: "3. Camera Permission",
-              content: "Camera access is used only when you actively choose to scan documents or capture images for a new PDF. The camera is never used in the background.",
-              cardColor: cardColor,
-              textColor: textColor,
-              headingColor: headingColor,
-            ),
-            _buildSection(
-              icon: Icons.wifi_off_outlined,
-              title: "4. Offline First Design",
-              content: "Blue PDF is designed to work completely offline. Internet access is not required for any feature, ensuring your data never leaves your device.",
-              cardColor: cardColor,
-              textColor: textColor,
-              headingColor: headingColor,
-            ),
-            _buildSection(
-              icon: Icons.ads_click,
-              title: "5. Advertisements & Analytics",
-              content: "This version is 100% ad-free and does not include any analytics trackers. Your experience is clean and private. This policy will be updated if this ever changes.",
-              cardColor: cardColor,
-              textColor: textColor,
-              headingColor: headingColor,
-            ),
-            _buildSection(
-              icon: Icons.contact_mail_outlined,
-              title: "6. Contact Us",
-              content: "If you have questions or feedback about this Privacy Policy, feel free to contact us at payushman72@gmail.com.",
-              cardColor: cardColor,
-              textColor: textColor,
-              headingColor: headingColor,
-            ),
-            const SizedBox(height: 24),
-            
-            // --- Summary Section ---
-            _buildSummaryCard(isDarkMode: isDarkMode, textColor: textColor),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // --- 2. Helper widget for building each "card" section ---
-  Widget _buildSection({
-    required IconData icon,
-    required String title,
-    required String content,
-    required Color cardColor,
-    required Color textColor,
-    required Color headingColor,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16.0),
-      padding: const EdgeInsets.all(16.0),
-      decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(12.0),
-        boxShadow: cardColor == Colors.white
-            ? [
-                BoxShadow(
-                  color: Colors.grey.withValues(alpha: 0.1),
-                  spreadRadius: 1,
-                  blurRadius: 5,
-                  offset: const Offset(0, 3),
-                ),
-              ]
-            : null,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      body: ListView(
+        padding: const EdgeInsets.all(16),
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Icon(icon, color: _accentBlue, size: 28),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  title,
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: headingColor),
-                ),
+          Card(
+            elevation: 3,
+            color: cardColor,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 18),
+              child: Column(
+                children: [
+                  Icon(Icons.verified_user_rounded, size: 44, color: accent),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Private by design',
+                    style: TextStyle(fontSize: 19, fontWeight: FontWeight.w600, color: textColor),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'BLUE PDF works entirely offline. Your documents never leave your phone.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 14, height: 1.5, color: bodyColor),
+                  ),
+                  const SizedBox(height: 10),
+                  Text('Last updated $lastUpdated', style: TextStyle(fontSize: 12.5, color: secondaryTextColor)),
+                ],
               ),
-            ],
+            ),
           ),
-          const SizedBox(height: 12),
-          Text(content, style: TextStyle(height: 1.5, fontSize: 15, color: textColor)),
+          const SizedBox(height: 14),
+          Card(
+            elevation: 2,
+            color: cardColor,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Column(
+                children: [
+                  for (final (index, section) in _sections.indexed) ...[
+                    if (index > 0)
+                      Divider(height: 1, indent: 64, endIndent: 16, color: secondaryTextColor.withValues(alpha: 0.2)),
+                    _Section(
+                      icon: section.icon,
+                      title: section.title,
+                      body: section.body,
+                      accent: accent,
+                      titleColor: textColor,
+                      bodyColor: bodyColor,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Card(
+            elevation: 2,
+            color: cardColor,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            clipBehavior: Clip.antiAlias,
+            child: ListTile(
+              leading: Icon(Icons.mail_outline_rounded, color: accent),
+              title: Text('Questions about privacy?', style: TextStyle(fontSize: 14.5, color: textColor)),
+              subtitle: Text(contactEmail, style: TextStyle(fontSize: 13, color: secondaryTextColor)),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+              onTap: () => launchUrl(Uri.parse('mailto:$contactEmail?subject=BLUE%20PDF%20Privacy')),
+            ),
+          ),
+          const SizedBox(height: 8),
         ],
       ),
     );
   }
-  
-  // --- 3. Helper widget for the final summary card ---
-  Widget _buildSummaryCard({required bool isDarkMode, required Color textColor}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-      decoration: BoxDecoration(
-        color: isDarkMode ? _primaryBlue.withValues(alpha: 0.3) : _primaryBlue.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _primaryBlue.withValues(alpha: 0.5)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            children: [
-              Icon(Icons.shield_outlined, color: _accentBlue),
-              SizedBox(width: 8),
-              Text(
-                "In Short: Your Privacy is Safe",
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: _accentBlue),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _buildSummaryPoint("No user data is ever collected or stored.", textColor),
-          _buildSummaryPoint("All processing happens offline on your device.", textColor),
-          _buildSummaryPoint("Permissions are for core features only.", textColor),
-          _buildSummaryPoint("The app is ad-free and tracker-free.", textColor),
-        ],
-      ),
-    );
-  }
+}
 
-  Widget _buildSummaryPoint(String text, Color textColor) {
+class _Section extends StatelessWidget {
+  const _Section({
+    required this.icon,
+    required this.title,
+    required this.body,
+    required this.accent,
+    required this.titleColor,
+    required this.bodyColor,
+  });
+
+  final IconData icon;
+  final String title;
+  final String body;
+  final Color accent;
+  final Color titleColor;
+  final Color bodyColor;
+
+  @override
+  Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10.0),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.check_circle, color: _successGreen, size: 22),
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(color: accent.withValues(alpha: 0.12), shape: BoxShape.circle),
+            child: Icon(icon, size: 20, color: accent),
+          ),
           const SizedBox(width: 12),
-          Expanded(child: Text(text, style: TextStyle(fontSize: 15, color: textColor))),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: titleColor),
+                ),
+                const SizedBox(height: 4),
+                Text(body, style: TextStyle(fontSize: 13.5, height: 1.5, color: bodyColor)),
+              ],
+            ),
+          ),
         ],
       ),
     );

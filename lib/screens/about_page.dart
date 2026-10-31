@@ -30,21 +30,13 @@ class AboutPage extends StatelessWidget {
       appBar: AppBar(
         iconTheme: const IconThemeData(color: Colors.white),
         title: const Text("About"),
-        titleTextStyle: const TextStyle(
-          color: Colors.white,
-          fontSize: 18,
-          fontWeight: FontWeight.w600,
-        ),
+        titleTextStyle: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
         centerTitle: true,
         elevation: 0,
         backgroundColor: Colors.transparent,
         flexibleSpace: Container(
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: gradientColors,
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
+            gradient: LinearGradient(colors: gradientColors, begin: Alignment.topLeft, end: Alignment.bottomRight),
           ),
         ),
       ),
@@ -53,8 +45,6 @@ class AboutPage extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         children: [
           _buildProfileCard(cardColor, textColor, secondaryTextColor, isDark),
-          const SizedBox(height: 14),
-          _buildConnectCard(cardColor, textColor, secondaryTextColor),
           const SizedBox(height: 14),
           _buildSupportCard(context, cardColor, textColor, secondaryTextColor, borderColor),
         ],
@@ -71,21 +61,14 @@ class AboutPage extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 16),
         child: Column(
           children: [
-            const CircleAvatar(
-              radius: 42,
-              backgroundColor: Color(0xFF1976D2),
-              child: Icon(Icons.person, size: 42, color: Colors.white),
-            ),
+            const _DeveloperAvatar(size: 84),
             const SizedBox(height: 14),
             Text(
               "Ayushman Pal",
               style: TextStyle(fontSize: 19, fontWeight: FontWeight.w600, color: textColor),
             ),
             const SizedBox(height: 2),
-            Text(
-              "Indie Developer",
-              style: TextStyle(fontSize: 13.5, color: secondaryTextColor),
-            ),
+            Text("Indie Developer", style: TextStyle(fontSize: 13.5, color: secondaryTextColor)),
             const SizedBox(height: 12),
             Text(
               "Thanks for using Blue PDF — a fast and simple utility built with 💙 to help you work with your documents offline. No ads, no nonsense.",
@@ -106,78 +89,13 @@ class AboutPage extends StatelessWidget {
     );
   }
 
-  Widget _buildConnectCard(Color cardColor, Color textColor, Color secondaryTextColor) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      color: cardColor,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              "Connect",
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: textColor),
-            ),
-            const SizedBox(height: 14),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildSocialButton(
-                  icon: Icons.code,
-                  label: "GitHub",
-                  color: Colors.black87,
-                  onTap: () => _launchURL("https://github.com/WannaCry016"),
-                  textColor: textColor,
-                ),
-                _buildSocialButton(
-                  icon: Icons.business,
-                  label: "LinkedIn",
-                  color: Color(0xFF0A66C2),
-                  onTap: () => _launchURL("https://linkedin.com/in/ayushmanpal"),
-                  textColor: textColor,
-                ),
-                _buildSocialButton(
-                  icon: Icons.email,
-                  label: "Email",
-                  color: Colors.redAccent,
-                  onTap: () => _launchURL("mailto:ayushmanpal@proton.me"),
-                  textColor: textColor,
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSocialButton({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-    required Color textColor,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: Column(
-        children: [
-          CircleAvatar(
-            backgroundColor: color.withValues(alpha: 0.1),
-            radius: 22,
-            child: Icon(icon, color: color, size: 24),
-          ),
-          const SizedBox(height: 6),
-          Text(label, style: TextStyle(fontSize: 12.5, color: textColor)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSupportCard(BuildContext context, Color cardColor, Color textColor, Color secondaryTextColor, Color borderColor) {
+  Widget _buildSupportCard(
+    BuildContext context,
+    Color cardColor,
+    Color textColor,
+    Color secondaryTextColor,
+    Color borderColor,
+  ) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -196,10 +114,7 @@ class AboutPage extends StatelessWidget {
             title: Text("Privacy Policy", style: TextStyle(fontSize: 14.5, color: textColor)),
             trailing: const Icon(Icons.arrow_forward_ios, size: 14),
             onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const PrivacyPolicyPage()),
-              );
+              Navigator.push(context, MaterialPageRoute(builder: (context) => const PrivacyPolicyPage()));
             },
           ),
           Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
@@ -208,10 +123,7 @@ class AboutPage extends StatelessWidget {
             title: Text("License", style: TextStyle(fontSize: 14.5, color: textColor)),
             trailing: const Icon(Icons.arrow_forward_ios, size: 14),
             onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const LicensePage()),
-              );
+              Navigator.push(context, MaterialPageRoute(builder: (context) => const LicensePage()));
             },
           ),
           Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
@@ -222,6 +134,33 @@ class AboutPage extends StatelessWidget {
             onTap: () => _launchURL("https://play.google.com/store/apps/details?id=com.bluepdf.blue_pdf"),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// The developer's picture from `assets/avatar.png`, or a person icon until one is added.
+class _DeveloperAvatar extends StatelessWidget {
+  const _DeveloperAvatar({required this.size});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final placeholder = ColoredBox(
+      color: const Color(0xFF1976D2),
+      child: Icon(Icons.person, size: size / 2, color: Colors.white),
+    );
+    return ClipOval(
+      child: SizedBox.square(
+        dimension: size,
+        child: Image.asset(
+          'assets/avatar.png',
+          fit: BoxFit.cover,
+          // Decoded at display size, whatever the source resolution.
+          cacheWidth: (size * MediaQuery.devicePixelRatioOf(context)).ceil(),
+          errorBuilder: (_, _, _) => placeholder,
+        ),
       ),
     );
   }
