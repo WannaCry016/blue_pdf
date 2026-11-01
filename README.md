@@ -84,7 +84,7 @@ flowchart LR
 ```
 lib/
   main.dart                 App entry, theme, startup cache cleanup
-  screens/                  Home, success, onboarding, about
+  screens/                  Home, success, about
   components/               Save sheet, progress dialog, page grid, camera, dialogs
   pdf/                      PdfEngine, PdfJob, page ranges, image formats
   services/                 In-app updates

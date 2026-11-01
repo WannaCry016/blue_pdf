@@ -1,5 +1,4 @@
 import 'package:blue_pdf/screens/home_screen.dart';
-import 'package:blue_pdf/screens/onbaording_screen.dart';
 import 'package:blue_pdf/state_providers.dart';
 import 'package:blue_pdf/utils/cache_cleaner.dart';
 import 'package:flutter/material.dart';
@@ -15,16 +14,13 @@ void main() async {
   final binding = WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
   themeNotifier.value = ThemePrefs.themeModeFrom(prefs);
-  final seenOnboarding = prefs.getBool('seenOnboarding') ?? false;
-  runApp(ProviderScope(child: PDFUtilApp(seenOnboarding: seenOnboarding)));
+  runApp(const ProviderScope(child: PDFUtilApp()));
   // Leftovers from sessions that were killed mid-job; after the first frame so opening isn't delayed.
   binding.addPostFrameCallback((_) => clearCache(before: launchedAt).ignore());
 }
 
 class PDFUtilApp extends StatelessWidget {
-  final bool seenOnboarding;
-
-  const PDFUtilApp({super.key, required this.seenOnboarding});
+  const PDFUtilApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -43,7 +39,7 @@ class PDFUtilApp extends StatelessWidget {
             useMaterial3: true,
           ),
           themeMode: mode,
-          home: seenOnboarding ? const HomeScreen() : OnboardingScreen(),
+          home: const HomeScreen(),
         );
       },
     );
