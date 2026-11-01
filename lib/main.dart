@@ -1,26 +1,29 @@
-import 'package:blue_pdf/screens/home_screen.dart';
+import 'package:blue_pdf/screens/splash_screen.dart';
 import 'package:blue_pdf/state_providers.dart';
 import 'package:blue_pdf/utils/cache_cleaner.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.light);
 
-// Keep work before runApp to a single prefs read: the native launch screen
-// stays up until the first frame, so anything here delays the app opening.
+// Keep work before runApp to one parallel prefs + version read: the native
+// launch screen stays up until the first frame, so anything here delays it.
 void main() async {
   final launchedAt = DateTime.now();
   final binding = WidgetsFlutterBinding.ensureInitialized();
-  final prefs = await SharedPreferences.getInstance();
+  final (prefs, info) = await (SharedPreferences.getInstance(), PackageInfo.fromPlatform()).wait;
   themeNotifier.value = ThemePrefs.themeModeFrom(prefs);
-  runApp(const ProviderScope(child: PDFUtilApp()));
+  runApp(ProviderScope(child: PDFUtilApp(version: info.version)));
   // Leftovers from sessions that were killed mid-job; after the first frame so opening isn't delayed.
   binding.addPostFrameCallback((_) => clearCache(before: launchedAt).ignore());
 }
 
 class PDFUtilApp extends StatelessWidget {
-  const PDFUtilApp({super.key});
+  const PDFUtilApp({super.key, this.version});
+
+  final String? version;
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +42,7 @@ class PDFUtilApp extends StatelessWidget {
             useMaterial3: true,
           ),
           themeMode: mode,
-          home: const HomeScreen(),
+          home: SplashScreen(version: version),
         );
       },
     );
