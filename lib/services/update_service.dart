@@ -8,8 +8,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Play's own sheet asks the user. An accepted update downloads in the
 /// background while they keep working, then [check] calls `onReady` so the
 /// app can offer a restart; nothing restarts the app until the user asks for
-/// it with [installDownloaded]. A declined update is not offered again for
-/// [askInterval], so it never nags on every launch.
+/// it with [installDownloaded]. A declined version is not offered again for
+/// [askInterval], so it never nags on every launch; a newer version is
+/// offered straight away.
 class UpdateService {
   UpdateService({
     Future<AppUpdateInfo> Function()? checkForUpdate,
@@ -26,7 +27,8 @@ class UpdateService {
   static final instance = UpdateService();
 
   static const askInterval = Duration(days: 3);
-  static const _lastOfferedKey = 'update_last_offered_at';
+  static const _declinedVersionKey = 'update_declined_version';
+  static const _declinedAtKey = 'update_declined_at';
 
   final Future<AppUpdateInfo> Function() _checkForUpdate;
   final Future<AppUpdateResult> Function() _startFlexibleUpdate;
@@ -54,13 +56,15 @@ class UpdateService {
       }
       if (info.updateAvailability != UpdateAvailability.updateAvailable) return;
       if (!info.flexibleUpdateAllowed && !info.immediateUpdateAllowed) return;
-      if (!await _takeTurnToOffer()) return;
+      final version = info.availableVersionCode ?? 0;
+      if (await _recentlyDeclined(version)) return;
 
-      if (info.flexibleUpdateAllowed) {
-        // Completes once the download finishes, or as declined.
-        if (await _startFlexibleUpdate() == AppUpdateResult.success) onReady();
-      } else {
-        await _performImmediateUpdate();
+      // Flexible completes once the download finishes, or as declined.
+      final result = info.flexibleUpdateAllowed ? await _startFlexibleUpdate() : await _performImmediateUpdate();
+      if (result == AppUpdateResult.userDeniedUpdate) {
+        await _rememberDeclined(version);
+      } else if (result == AppUpdateResult.success && info.flexibleUpdateAllowed) {
+        onReady();
       }
     } catch (e) {
       // Updating must never get in the way of using the app.
@@ -79,13 +83,18 @@ class UpdateService {
     }
   }
 
-  Future<bool> _takeTurnToOffer() async {
+  Future<bool> _recentlyDeclined(int version) async {
     final prefs = await SharedPreferences.getInstance();
-    final now = _now();
-    final last = prefs.getInt(_lastOfferedKey);
-    if (last != null && now.difference(DateTime.fromMillisecondsSinceEpoch(last)) < askInterval) return false;
-    await prefs.setInt(_lastOfferedKey, now.millisecondsSinceEpoch);
-    return true;
+    final declinedVersion = prefs.getInt(_declinedVersionKey);
+    final declinedAt = prefs.getInt(_declinedAtKey);
+    if (declinedVersion == null || declinedAt == null || version > declinedVersion) return false;
+    return _now().difference(DateTime.fromMillisecondsSinceEpoch(declinedAt)) < askInterval;
+  }
+
+  Future<void> _rememberDeclined(int version) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_declinedVersionKey, version);
+    await prefs.setInt(_declinedAtKey, _now().millisecondsSinceEpoch);
   }
 
   /// The user-facing version, e.g. "1.0.3" (without the Play build number).

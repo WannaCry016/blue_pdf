@@ -10,6 +10,7 @@ AppUpdateInfo info({
   InstallStatus status = InstallStatus.unknown,
   bool flexible = true,
   bool immediate = true,
+  int version = 23,
 }) =>
     AppUpdateInfo(
       updateAvailability: availability,
@@ -17,7 +18,7 @@ AppUpdateInfo info({
       immediateAllowedPreconditions: null,
       flexibleUpdateAllowed: flexible,
       flexibleAllowedPreconditions: null,
-      availableVersionCode: 23,
+      availableVersionCode: version,
       installStatus: status,
       packageName: 'com.bluepdf.blue_pdf',
       clientVersionStalenessDays: 0,
@@ -75,6 +76,37 @@ void main() {
     now = now.add(const Duration(days: 1));
     await check();
     expect(calls, ['flexible', 'flexible']);
+  });
+
+  test('a newer version is offered straight away, even after declining one', () async {
+    flexibleResult = AppUpdateResult.userDeniedUpdate;
+    await check();
+
+    current = info(version: 24);
+    now = now.add(const Duration(hours: 1));
+    await check();
+
+    expect(calls, ['flexible', 'flexible']);
+  });
+
+  test('accepting an update does not hold back the next one', () async {
+    await check();
+
+    current = info(version: 24);
+    now = now.add(const Duration(hours: 1));
+    await check();
+
+    expect(calls, ['flexible', 'flexible']);
+    expect(readyCount, 2);
+  });
+
+  test('an update that failed to start is offered again on the next launch', () async {
+    flexibleResult = AppUpdateResult.inAppUpdateFailed;
+    await check();
+    await check();
+
+    expect(calls, ['flexible', 'flexible']);
+    expect(readyCount, 0);
   });
 
   test('an update downloaded earlier is offered for restart straight away', () async {
