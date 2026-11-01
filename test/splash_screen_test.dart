@@ -14,6 +14,10 @@ void main() {
 
     await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
     await tester.pumpAndSettle();
+    expect(find.text('Blue PDF • Version v1.0.3'), findsOneWidget, reason: 'held for minVisible');
+
+    await tester.pump(SplashScreen.minVisible);
+    await tester.pumpAndSettle();
 
     expect(find.text('Blue PDF • Version v1.0.3'), findsNothing);
     expect(find.text('home'), findsOneWidget);
@@ -22,6 +26,9 @@ void main() {
   testWidgets('falls back to the app name without a version', (tester) async {
     await show(tester);
     expect(find.text('Blue PDF'), findsOneWidget);
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
+    await tester.pump(SplashScreen.minVisible);
+    await tester.pumpAndSettle();
   });
 
   testWidgets('keeps the next screen\'s state when the splash goes', (tester) async {
@@ -29,8 +36,10 @@ void main() {
     await show(tester, next: _InitCounter(onInit: () => builds++));
 
     await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
+    await tester.pump(SplashScreen.minVisible);
     await tester.pumpAndSettle();
 
+    expect(find.text('Blue PDF'), findsNothing);
     expect(find.byType(_InitCounter), findsOneWidget);
     expect(builds, 1);
   });

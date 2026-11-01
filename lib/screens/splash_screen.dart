@@ -5,12 +5,16 @@ import 'package:flutter/services.dart';
 const _logo = AssetImage('assets/splash_logo.webp');
 
 /// Shows the splash over [next] while [next] builds and decodes its images
-/// underneath, then fades away. It stays exactly as long as loading takes.
+/// underneath, then fades away: after [minVisible], or once loading is done
+/// if that takes longer.
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key, this.version, this.next = const HomeScreen()});
 
   final String? version;
   final Widget next;
+
+  /// Long enough to see the logo and version rather than a flash.
+  static const minVisible = Duration(seconds: 1);
 
   /// Upper bound on waiting for [next]'s images, so a slow decode never holds the app.
   static const maxWait = Duration(seconds: 2);
@@ -47,12 +51,14 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   }
 
   Future<void> _revealWhenReady() async {
-    final deadline = DateTime.now().add(SplashScreen.maxWait);
+    final minimum = Future<void>.delayed(SplashScreen.minVisible);
+    final loading = Stopwatch()..start();
     await WidgetsBinding.instance.endOfFrame;
     final images = PaintingBinding.instance.imageCache;
-    while (images.pendingImageCount > 0 && DateTime.now().isBefore(deadline)) {
+    while (images.pendingImageCount > 0 && loading.elapsed < SplashScreen.maxWait) {
       await WidgetsBinding.instance.endOfFrame;
     }
+    await minimum;
     if (!mounted) return;
     await _fade.reverse();
     if (mounted) setState(() => _gone = true);
