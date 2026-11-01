@@ -1,28 +1,41 @@
-/// Parses page ranges such as `1-3, 7, 9-12` (1-based, as typed by the user)
-/// into 0-based page indices in the order given. Repeated pages are kept once.
+/// Checks the split dialog's From and To boxes (1-based, as typed).
 ///
-/// Throws a [FormatException] whose message can be shown to the user.
-List<int> parsePageRanges(String input, int pageCount) {
-  final parts = input.split(',').map((p) => p.trim()).where((p) => p.isNotEmpty).toList();
-  if (parts.isEmpty) throw const FormatException('Enter the pages to keep, e.g. 1-3, 7');
-
-  final seen = <int>{};
-  final pages = <int>[];
-  for (final part in parts) {
-    final match = RegExp(r'^(\d+)\s*(?:-\s*(\d+))?$').firstMatch(part);
-    if (match == null) throw FormatException('"$part" is not a page or range');
-
-    final start = int.parse(match.group(1)!);
-    final end = match.group(2) == null ? start : int.parse(match.group(2)!);
-    if (start < 1 || end < 1) throw const FormatException('Pages start at 1');
-    if (start > end) throw FormatException('"$part" goes backwards; write it as $end-$start');
-    if (end > pageCount) {
-      throw FormatException('This PDF has $pageCount ${pageCount == 1 ? 'page' : 'pages'}');
+/// Each box is judged on its own first, so a mistake in one never marks the
+/// other as wrong. An empty box is "not finished yet", not an error. Only when
+/// both are valid pages is their order checked, and that error goes on the box
+/// the user changed last ([editedFrom]).
+class PageRange {
+  factory PageRange(String fromText, String toText, int pageCount, {bool editedFrom = false}) {
+    final (from, fromError) = _page(fromText, pageCount);
+    final (to, toError) = _page(toText, pageCount);
+    if (from != null && to != null && from > to) {
+      return editedFrom
+          ? PageRange._(from, to, "Can't be after page $to", null)
+          : PageRange._(from, to, null, "Can't be before page $from");
     }
-
-    for (var page = start; page <= end; page++) {
-      if (seen.add(page)) pages.add(page - 1);
-    }
+    return PageRange._(from, to, fromError, toError);
   }
-  return pages;
+
+  const PageRange._(this.from, this.to, this.fromError, this.toError);
+
+  /// The page in each box when it is a page of this PDF, regardless of order.
+  final int? from;
+  final int? to;
+  final String? fromError;
+  final String? toError;
+
+  bool get isValid => from != null && to != null && fromError == null && toError == null;
+
+  /// 0-based page indices from [from] to [to], or empty when not [isValid].
+  List<int> get pages => isValid ? [for (var page = from!; page <= to!; page++) page - 1] : const [];
+
+  static (int?, String?) _page(String text, int pageCount) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return (null, null);
+    final page = int.tryParse(trimmed);
+    if (page == null) return (null, 'Enter a number');
+    if (page < 1) return (null, 'Pages start at 1');
+    if (page > pageCount) return (null, 'Only $pageCount ${pageCount == 1 ? 'page' : 'pages'}');
+    return (page, null);
+  }
 }

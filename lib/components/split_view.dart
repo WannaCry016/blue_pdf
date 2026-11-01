@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../pdf/page_ranges.dart';
 import '../state_providers.dart';
@@ -26,47 +27,91 @@ class SplitPdfDialog extends StatefulWidget {
 }
 
 class _SplitPdfDialogState extends State<SplitPdfDialog> {
-  late final TextEditingController _controller;
+  late final TextEditingController _from;
+  late final TextEditingController _to;
+  late PageRange _range;
   Timer? _debounce;
-  List<int> _pages = const [];
-  String? _error;
+  bool _editedFrom = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(
-      text: widget.pageCount == 1 ? '1' : '1-${widget.pageCount}',
-    );
-    _parse();
+    _from = TextEditingController(text: '1');
+    _to = TextEditingController(text: '${widget.pageCount}');
+    _check();
   }
 
   @override
   void dispose() {
     _debounce?.cancel();
-    _controller.dispose();
+    _from.dispose();
+    _to.dispose();
     super.dispose();
   }
 
-  void _parse() {
-    try {
-      _pages = parsePageRanges(_controller.text, widget.pageCount);
-      _error = null;
-    } on FormatException catch (e) {
-      _error = e.message;
-    }
-  }
+  void _check() => _range = PageRange(_from.text, _to.text, widget.pageCount, editedFrom: _editedFrom);
 
-  void _onChanged(String _) {
+  // Waits for a pause in typing so "1" on the way to "12" isn't flagged or rendered.
+  void _onChanged({required bool from}) {
+    _editedFrom = from;
     _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 250), () {
-      if (mounted) setState(_parse);
+    _debounce = Timer(const Duration(milliseconds: 400), () {
+      if (mounted) setState(_check);
     });
   }
 
   void _submit() {
     _debounce?.cancel();
-    setState(_parse);
-    if (_error == null && _pages.isNotEmpty) Navigator.pop(context, _pages);
+    setState(_check);
+    if (_range.isValid) Navigator.pop(context, _range.pages);
+  }
+
+  Widget _buildPageField({
+    required String label,
+    required TextEditingController controller,
+    required String? error,
+    required bool isFrom,
+    required Color textColor,
+    required Color cardColor,
+    required Color borderColor,
+    required Color accent,
+  }) {
+    OutlineInputBorder outline(Color color, [double width = 1]) => OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: color, width: width),
+        );
+    final errorColor = Colors.red.shade400;
+    return Expanded(
+      child: TextField(
+        controller: controller,
+        keyboardType: TextInputType.number,
+        inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(5)],
+        textInputAction: isFrom ? TextInputAction.next : TextInputAction.done,
+        onChanged: (_) => _onChanged(from: isFrom),
+        onSubmitted: isFrom ? null : (_) => _submit(),
+        style: TextStyle(color: textColor, fontSize: 16, fontWeight: FontWeight.w500),
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: TextStyle(color: textColor.withValues(alpha: 0.7), fontSize: 14),
+          floatingLabelStyle: TextStyle(color: error == null ? accent : errorColor),
+          suffixText: '/ ${widget.pageCount}',
+          suffixStyle: TextStyle(color: textColor.withValues(alpha: 0.6), fontSize: 12),
+          // Reserves the error line so the dialog doesn't jump when one appears.
+          helperText: ' ',
+          errorText: error,
+          errorMaxLines: 2,
+          errorStyle: TextStyle(color: errorColor, fontSize: 12),
+          filled: true,
+          fillColor: cardColor,
+          border: outline(borderColor),
+          enabledBorder: outline(borderColor),
+          focusedBorder: outline(accent, 2),
+          errorBorder: outline(errorColor),
+          focusedErrorBorder: outline(errorColor, 2),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        ),
+      ),
+    );
   }
 
   Widget _buildPreview({
@@ -153,9 +198,12 @@ class _SplitPdfDialogState extends State<SplitPdfDialog> {
         ? [const Color(0xFF2979FF), const Color(0xFF536DFE), const Color(0xFF00B8D4)]
         : [const Color(0xFF0D47A1), const Color(0xFF1976D2)];
 
-    final selectionText = _error ??
-        '${_pages.length} of ${widget.pageCount} ${widget.pageCount == 1 ? 'page' : 'pages'} selected';
-    final hasSelection = _error == null && _pages.isNotEmpty;
+    final range = _range;
+    final hasSelection = range.isValid;
+    final pageWord = widget.pageCount == 1 ? 'page' : 'pages';
+    final selectionText = hasSelection
+        ? '${range.pages.length} of ${widget.pageCount} $pageWord selected'
+        : 'This PDF has ${widget.pageCount} $pageWord';
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -205,7 +253,7 @@ class _SplitPdfDialogState extends State<SplitPdfDialog> {
                       children: [
                         _buildPreview(
                           label: 'First page',
-                          page: hasSelection ? _pages.first : null,
+                          page: range.from == null ? null : range.from! - 1,
                           cardColor: cardColor,
                           borderColor: borderColor,
                           textColor: textColor,
@@ -215,7 +263,7 @@ class _SplitPdfDialogState extends State<SplitPdfDialog> {
                         const SizedBox(width: 16),
                         _buildPreview(
                           label: 'Last page',
-                          page: hasSelection ? _pages.last : null,
+                          page: range.to == null ? null : range.to! - 1,
                           cardColor: cardColor,
                           borderColor: borderColor,
                           textColor: textColor,
@@ -226,45 +274,35 @@ class _SplitPdfDialogState extends State<SplitPdfDialog> {
                     ),
                     const SizedBox(height: 20),
                     Text('Pages to keep', style: TextStyle(color: textColor, fontSize: 14, fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _controller,
-                      keyboardType: TextInputType.visiblePassword,
-                      autocorrect: false,
-                      enableSuggestions: false,
-                      onChanged: _onChanged,
-                      onSubmitted: (_) => _submit(),
-                      style: TextStyle(color: textColor, fontSize: 16, fontWeight: FontWeight.w500),
-                      decoration: InputDecoration(
-                        hintText: 'e.g. 1-3, 7, 9-12',
-                        hintStyle: TextStyle(color: textColor.withValues(alpha: 0.5), fontSize: 14),
-                        filled: true,
-                        fillColor: cardColor,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: borderColor),
+                    const SizedBox(height: 12),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildPageField(
+                          label: 'From',
+                          controller: _from,
+                          error: range.fromError,
+                          isFrom: true,
+                          textColor: textColor,
+                          cardColor: cardColor,
+                          borderColor: borderColor,
+                          accent: accent,
                         ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: borderColor),
+                        const SizedBox(width: 12),
+                        _buildPageField(
+                          label: 'To',
+                          controller: _to,
+                          error: range.toError,
+                          isFrom: false,
+                          textColor: textColor,
+                          cardColor: cardColor,
+                          borderColor: borderColor,
+                          accent: accent,
                         ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: accent, width: 2),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                        suffixText: '/ ${widget.pageCount}',
-                        suffixStyle: TextStyle(color: textColor.withValues(alpha: 0.6), fontSize: 12),
-                      ),
+                      ],
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      selectionText,
-                      style: TextStyle(
-                        color: _error == null ? secondaryTextColor : Colors.red.shade400,
-                        fontSize: 13,
-                      ),
-                    ),
+                    const SizedBox(height: 4),
+                    Text(selectionText, style: TextStyle(color: secondaryTextColor, fontSize: 13)),
                   ],
                 ),
               ),
