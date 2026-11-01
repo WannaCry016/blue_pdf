@@ -1,33 +1,38 @@
-import 'dart:async';
-
 import 'package:blue_pdf/screens/home_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 const _logo = AssetImage('assets/splash_logo.webp');
 
+/// Shows the splash over [next] while [next] builds and decodes its images
+/// underneath, then fades away. It stays exactly as long as loading takes.
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key, this.version, this.next = const HomeScreen()});
 
   final String? version;
   final Widget next;
 
-  static const duration = Duration(milliseconds: 1500);
+  /// Upper bound on waiting for [next]'s images, so a slow decode never holds the app.
+  static const maxWait = Duration(seconds: 2);
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
-  late final Timer _timer;
+class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
+  late final AnimationController _fade = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 350),
+    value: 1,
+  );
   bool _logoRequested = false;
+  bool _gone = false;
 
   @override
   void initState() {
     super.initState();
     // Keep the native launch screen, which shows the same logo, until ours is decoded.
     WidgetsBinding.instance.deferFirstFrame();
-    _timer = Timer(SplashScreen.duration, _openNext);
   }
 
   @override
@@ -35,32 +40,56 @@ class _SplashScreenState extends State<SplashScreen> {
     super.didChangeDependencies();
     if (_logoRequested) return;
     _logoRequested = true;
-    precacheImage(_logo, context).whenComplete(WidgetsBinding.instance.allowFirstFrame);
+    precacheImage(_logo, context).whenComplete(() {
+      WidgetsBinding.instance.allowFirstFrame();
+      _revealWhenReady();
+    });
+  }
+
+  Future<void> _revealWhenReady() async {
+    final deadline = DateTime.now().add(SplashScreen.maxWait);
+    await WidgetsBinding.instance.endOfFrame;
+    final images = PaintingBinding.instance.imageCache;
+    while (images.pendingImageCount > 0 && DateTime.now().isBefore(deadline)) {
+      await WidgetsBinding.instance.endOfFrame;
+    }
+    if (!mounted) return;
+    await _fade.reverse();
+    if (mounted) setState(() => _gone = true);
   }
 
   @override
   void dispose() {
-    _timer.cancel();
+    _fade.dispose();
     super.dispose();
-  }
-
-  void _openNext() {
-    if (!mounted) return;
-    Navigator.of(context).pushReplacement(PageRouteBuilder<void>(
-      transitionDuration: const Duration(milliseconds: 300),
-      pageBuilder: (_, _, _) => widget.next,
-      transitionsBuilder: (_, animation, _, child) => FadeTransition(opacity: animation, child: child),
-    ));
   }
 
   @override
   Widget build(BuildContext context) {
-    final version = widget.version;
+    // Same tree shape before and after, so [next] keeps its state when the splash goes.
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        widget.next,
+        if (!_gone) FadeTransition(opacity: _fade, child: _SplashView(version: widget.version)),
+      ],
+    );
+  }
+}
+
+class _SplashView extends StatelessWidget {
+  const _SplashView({this.version});
+
+  final String? version;
+
+  @override
+  Widget build(BuildContext context) {
+    final version = this.version;
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
-      child: Scaffold(
-        backgroundColor: const Color(0xFF0F1115),
-        body: Stack(
+      child: Material(
+        color: const Color(0xFF0F1115),
+        child: Stack(
           children: [
             // Centred on the whole screen so it lines up with the native launch screen.
             const Center(child: Image(image: _logo, width: 200)),
