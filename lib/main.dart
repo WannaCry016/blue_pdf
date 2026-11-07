@@ -1,3 +1,4 @@
+import 'package:blue_pdf/components/slide_page_transitions.dart';
 import 'package:blue_pdf/screens/splash_screen.dart';
 import 'package:blue_pdf/state_providers.dart';
 import 'package:blue_pdf/utils/cache_cleaner.dart';
@@ -25,6 +26,10 @@ class PDFUtilApp extends StatelessWidget {
 
   final String? version;
 
+  static const _pageTransitions = PageTransitionsTheme(builders: {
+    TargetPlatform.android: SlidePageTransitionsBuilder(),
+  });
+
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<ThemeMode>(
@@ -36,10 +41,12 @@ class PDFUtilApp extends StatelessWidget {
             primarySwatch: Colors.blue,
             useMaterial3: true,
             brightness: Brightness.light,
+            pageTransitionsTheme: _pageTransitions,
           ),
           darkTheme: ThemeData(
             brightness: Brightness.dark,
             useMaterial3: true,
+            pageTransitionsTheme: _pageTransitions,
           ),
           themeMode: mode,
           home: SplashScreen(version: version),
