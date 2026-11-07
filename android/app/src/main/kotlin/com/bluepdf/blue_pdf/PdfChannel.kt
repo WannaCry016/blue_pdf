@@ -33,6 +33,7 @@ class PdfChannel(
     private val channel = MethodChannel(messenger, NAME)
     private val jobs = PdfJobs(messenger)
     private val importer = FileImporter(contentResolver, cacheDir)
+    private val optimizer = ImageOptimizer(cacheDir)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     // Native rendering keeps one document open between calls, so renders are serialised.
@@ -56,17 +57,7 @@ class PdfChannel(
                 mapOf("pageCount" to info[0], "encrypted" to (info[1] == 1))
             }
 
-            "imagesToPdf" -> runJob(call, result) { progress ->
-                val out = newOutputFile("images")
-                val skipped = PdfNative.imagesToPdf(
-                    call.requireStrings("paths").toTypedArray(),
-                    call.ints("rotations"),
-                    call.argument<Boolean>("fitToImage") ?: false,
-                    out.path,
-                    progress,
-                )
-                mapOf("path" to out.path, "skipped" to skipped.toList())
-            }
+            "imagesToPdf" -> runJob(call, result) { progress -> imagesToPdf(call, progress) }
 
             "merge" -> runJob(call, result) { progress ->
                 val out = newOutputFile("merged")
@@ -125,6 +116,35 @@ class PdfChannel(
             "canSaveToDownloads" -> result.success(Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
 
             else -> result.notImplemented()
+        }
+    }
+
+    /**
+     * Shrinks oversized photos, then lays the images out natively. Progress counts images through
+     * the first step and covers the native layout and writing in the rest.
+     */
+    private suspend fun imagesToPdf(call: MethodCall, progress: PdfProgressListener?): Map<String, Any> {
+        val paths = call.requireStrings("paths")
+        val (images, temporary) = optimizer.optimize(paths) { done ->
+            progress?.onProgress(STAGE_PROCESSING, done, paths.size, OPTIMIZE_SHARE * done / paths.size) ?: true
+        }
+        try {
+            val out = newOutputFile("images")
+            val native = progress?.let { listener ->
+                PdfProgressListener { stage, _, _, fraction ->
+                    listener.onProgress(stage, paths.size, paths.size, OPTIMIZE_SHARE + (1 - OPTIMIZE_SHARE) * fraction)
+                }
+            }
+            val skipped = PdfNative.imagesToPdf(
+                images.toTypedArray(),
+                call.ints("rotations"),
+                call.argument<Boolean>("fitToImage") ?: false,
+                out.path,
+                native,
+            )
+            return mapOf("path" to out.path, "skipped" to skipped.toList())
+        } finally {
+            temporary.deleteRecursively()
         }
     }
 
@@ -244,5 +264,9 @@ class PdfChannel(
     private companion object {
         const val NAME = "com.bluepdf.channel/pdf"
         const val TAG = "PdfChannel"
+        const val STAGE_PROCESSING = 0
+
+        // Decoding and re-encoding photos is the slow part; layout and writing then copy compact JPEGs.
+        const val OPTIMIZE_SHARE = 0.6f
     }
 }
