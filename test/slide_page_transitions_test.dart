@@ -55,8 +55,16 @@ void main() {
     expect(find.text('home'), findsOneWidget, reason: 'the page beneath shows through');
 
     await sendBack(tester, 'commitBackGesture');
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(detailsPage(tester).left, greaterThan(width / 2), reason: 'continues from the finger, no snap back');
+
+    // Half the page was left to go: half the 200 ms transition.
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump();
     expect(find.text('details'), findsNothing);
+    final homeWhenDone = tester.getTopLeft(find.text('home'));
+    await tester.pumpAndSettle();
+    expect(tester.getTopLeft(find.text('home')), homeWhenDone, reason: 'nothing is still sliding');
   });
 
   testWidgets('cancelling the back gesture slides the page back', (tester) async {

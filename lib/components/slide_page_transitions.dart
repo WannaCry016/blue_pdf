@@ -8,7 +8,7 @@ class SlidePageTransitionsBuilder extends PageTransitionsBuilder {
   const SlidePageTransitionsBuilder();
 
   @override
-  Duration get transitionDuration => const Duration(milliseconds: 300);
+  Duration get transitionDuration => const Duration(milliseconds: 200);
 
   @override
   Widget buildTransitions<T>(
@@ -71,8 +71,24 @@ class _SlideTransitionState extends State<_SlideTransition> with WidgetsBindingO
   @override
   void handleCancelBackGesture() => widget.route.handleCancelBackGesture();
 
+  // Flutter's own commit restarts the exit from fully open; this finishes the
+  // slide from where the finger let go instead.
   @override
-  void handleCommitBackGesture() => widget.route.handleCommitBackGesture();
+  void handleCommitBackGesture() {
+    final route = widget.route;
+    final navigator = route.navigator;
+    if (navigator == null || !route.isCurrent) return;
+    navigator.pop();
+    final animation = widget.animation;
+    if (!animation.isAnimating) return navigator.didStopUserGesture();
+    late final AnimationStatusListener settled;
+    settled = (status) {
+      if (status.isAnimating) return;
+      animation.removeStatusListener(settled);
+      navigator.didStopUserGesture();
+    };
+    animation.addStatusListener(settled);
+  }
 
   @override
   Widget build(BuildContext context) {
