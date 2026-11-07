@@ -3,7 +3,6 @@ import 'package:blue_pdf/services/update_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:in_app_update/in_app_update.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 AppUpdateInfo info({
   UpdateAvailability availability = UpdateAvailability.updateAvailable,
@@ -29,7 +28,6 @@ void main() {
   late List<String> calls;
   late AppUpdateInfo current;
   late AppUpdateResult flexibleResult;
-  late DateTime now;
   late int readyCount;
 
   UpdateService service() => UpdateService(
@@ -43,17 +41,14 @@ void main() {
           return AppUpdateResult.success;
         },
         completeFlexibleUpdate: () async => calls.add('install'),
-        now: () => now,
       );
 
   Future<void> check() => service().check(onReady: () => readyCount++);
 
   setUp(() {
-    SharedPreferences.setMockInitialValues({});
     calls = [];
     current = info();
     flexibleResult = AppUpdateResult.success;
-    now = DateTime(2026, 11, 1, 10);
     readyCount = 0;
   });
 
@@ -64,36 +59,19 @@ void main() {
     expect(readyCount, 1);
   });
 
-  test('a declined update is not ready and not offered again for a few days', () async {
+  test('a declined update is offered again on the next launch', () async {
     flexibleResult = AppUpdateResult.userDeniedUpdate;
     await check();
+    await check();
+
+    expect(calls, ['flexible', 'flexible']);
     expect(readyCount, 0);
-
-    now = now.add(const Duration(days: 2));
-    await check();
-    expect(calls, ['flexible']);
-
-    now = now.add(const Duration(days: 1));
-    await check();
-    expect(calls, ['flexible', 'flexible']);
-  });
-
-  test('a newer version is offered straight away, even after declining one', () async {
-    flexibleResult = AppUpdateResult.userDeniedUpdate;
-    await check();
-
-    current = info(version: 24);
-    now = now.add(const Duration(hours: 1));
-    await check();
-
-    expect(calls, ['flexible', 'flexible']);
   });
 
   test('accepting an update does not hold back the next one', () async {
     await check();
 
     current = info(version: 24);
-    now = now.add(const Duration(hours: 1));
     await check();
 
     expect(calls, ['flexible', 'flexible']);
