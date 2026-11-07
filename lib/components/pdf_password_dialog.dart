@@ -59,6 +59,8 @@ class _PdfPasswordDialogState extends State<_PdfPasswordDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      // Small phones can't fit the icon, title, message and field above the keyboard.
+      scrollable: true,
       icon: const Icon(Icons.lock_outline_rounded),
       title: const Text('Password required'),
       content: Column(

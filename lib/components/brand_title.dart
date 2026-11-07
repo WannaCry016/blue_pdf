@@ -14,14 +14,21 @@ class BrandTitle extends StatelessWidget {
       children: [
         AppLogo(size: logoSize),
         SizedBox(width: logoSize * 0.33),
-        Text(
-          'BLUE PDF',
-          style: TextStyle(
-            fontFamily: 'sans-serif',
-            fontSize: fontSize,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.3,
-            color: Colors.white,
+        // Shrinks rather than overflows next to the actions on narrow screens with large text.
+        Flexible(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              'BLUE PDF',
+              maxLines: 1,
+              style: TextStyle(
+                fontFamily: 'sans-serif',
+                fontSize: fontSize,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.3,
+                color: Colors.white,
+              ),
+            ),
           ),
         ),
       ],

@@ -8,6 +8,7 @@ import 'package:open_filex/open_filex.dart';
 import '../components/brand_title.dart';
 import '../components/camera.dart';
 import '../components/dropdown.dart';
+import '../components/empty_state_card.dart';
 import '../components/pdf_password_dialog.dart';
 import '../components/set_password_dialog.dart';
 import '../components/update_ready_snack_bar.dart';
@@ -410,6 +411,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   // Responsive size helpers
   T responsive<T>(BuildContext context, T phone, T tablet) => isTablet(context) ? tablet : phone;
 
+  Widget _scrollWhen(bool scroll, Widget child) => scroll ? SingleChildScrollView(child: child) : child;
+
 
   @override
   Widget build(BuildContext context) {
@@ -507,10 +510,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           // Calculate dynamic sizes (responsive for tablet)
           final double screenHeight = constraints.maxHeight;
           final double screenWidth = constraints.maxWidth;
-          final double boxImageSize = isTab ? screenWidth * 0.22 : screenWidth * 0.35;
-          final double boxPadding = isTab ? screenHeight * 0.06 : screenHeight * 0.04;
-          final double boxMinHeight = isTab ? screenHeight * 0.32 : screenHeight * 0.22;
-          final double boxMaxHeight = isTab ? screenHeight * 0.45 : screenHeight * 0.32;
           final double mainFont = isTab ? 22 : 16;
           final double subFont = isTab ? 18 : 14;
           final double buttonFont = isTab ? 18 : 15.5;
@@ -521,6 +520,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           final double closeIcon = isTab ? 28 : 20;
           final double gridThumb = isTab ? 120 : 70;
           final double cameraButtonSize = isTab ? 120 : 96;
+          // Phones in landscape are too short for the fixed layout: the page scrolls
+          // instead, and the empty-state card, which would have no room, is left out.
+          final shortScreen = screenHeight < 440;
 
           return Stack(
             children: [
@@ -529,7 +531,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   horizontal: screenWidth * (isTab ? 0.12 : 0.05),
                   vertical: screenHeight * (isTab ? 0.07 : 0.04),
                 ),
-                child: Column(
+                child: _scrollWhen(shortScreen, Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     GestureDetector(
@@ -908,73 +910,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
                     SizedBox(height: screenHeight * (isTab ? 0.07 : 0.045)),
                     // Responsive box and camera area
-                    Expanded(
-                      child: Align(
-                        alignment: Alignment.topCenter,
-                        child: selectedFiles.isEmpty
-                            ? Container(
-                                margin: EdgeInsets.symmetric(horizontal: screenWidth * (isTab ? 0.08 : 0.04)),
-                                padding: EdgeInsets.all(boxPadding),
-                                constraints: BoxConstraints(
-                                  minHeight: isTab ? screenHeight * 0.35 : boxMinHeight,
-                                  maxHeight: isTab ? screenHeight * 0.65 : boxMaxHeight * 1.5,
-                                  minWidth: screenWidth * (isTab ? 0.7 : 0.6),
-                                  maxWidth: screenWidth * (isTab ? 0.98 : 0.95),
-                                ),
-                                decoration: BoxDecoration(
-                                  color: cardColor,
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(color: borderColor),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: isDark ? Colors.black26 : Colors.black12,
-                                      blurRadius: 8,
-                                      offset: Offset(0, 4),
-                                    ),
-                                  ],
-                                ),
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    Flexible(
-                                      flex: 2,
-                                      child: FittedBox(
-                                        fit: BoxFit.contain,
-                                        child: Image.asset(
-                                          'assets/2.webp',
-                                          height: boxImageSize,
-                                          width: boxImageSize,
-                                          cacheWidth: (boxImageSize * MediaQuery.devicePixelRatioOf(context)).ceil(),
-                                        ),
-                                      ),
-                                    ),
-                                    SizedBox(height: screenHeight * (isTab ? 0.018 : 0.012)),
-                                    Flexible(
-                                      flex: 1,
-                                      child: Padding(
-                                        padding: EdgeInsets.symmetric(horizontal: isTab ? 32 : 12),
-                                        child: Text(
-                                          "Start by choosing a tool or uploading a file.",
-                                          textAlign: TextAlign.center,
-                                          style: TextStyle(
-                                            fontSize: subFont,
-                                            fontWeight: FontWeight.w400,
-                                            color: textColor.withValues(alpha: 0.55),
-                                            letterSpacing: 0.2,
-                                          ),
-                                          maxLines: 3,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                    ),
-                                    SizedBox(height: screenHeight * (isTab ? 0.014 : 0.01)),
-                                  ],
-                                ),
-                              )
-                            : SizedBox(height: isTab ? 20 : 10),
+                    if (!shortScreen)
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.topCenter,
+                          child: selectedFiles.isEmpty
+                              ? EmptyStateCard(
+                                  isTablet: isTab,
+                                  isDark: isDark,
+                                  cardColor: cardColor,
+                                  borderColor: borderColor,
+                                  textColor: textColor,
+                                )
+                              : SizedBox(height: isTab ? 20 : 10),
+                        ),
                       ),
-                    ),
 
                     SizedBox(height: screenHeight * (isTab ? 0.018 : 0.01)),
 
@@ -992,7 +942,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       ),
                     ),
                   ],
-                ),
+                )),
               ),
               // Grid View Overlay
               if (viewMode == ViewMode.grid && selectedFiles.isNotEmpty)
